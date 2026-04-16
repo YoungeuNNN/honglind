@@ -20,16 +20,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initialized: false,
 
   init: async () => {
-    await DS.seed()
-    const session = DS.getSession()
-    if (session) {
-      const fresh = DS.getUserById(session.id)
-      if (fresh) {
-        DS.setSession(fresh)
-        set({ user: fresh, initialized: true })
-        return
+    try {
+      await DS.seed()
+      const session = DS.getSession()
+      if (session) {
+        const fresh = DS.getUserById(session.id)
+        if (fresh) {
+          DS.setSession(fresh)
+          set({ user: fresh, initialized: true })
+          return
+        }
+        DS.setSession(null)
       }
-      DS.setSession(null)
+    } catch (e) {
+      console.error('Init failed:', e)
     }
     set({ user: null, initialized: true })
   },
