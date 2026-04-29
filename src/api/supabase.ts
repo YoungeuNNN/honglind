@@ -4,7 +4,12 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in environment')
+  // 빌드 시 환경변수 누락이면 throw 하기 전에 화면에 안내 표시
+  const msg = 'Supabase 환경변수가 설정되지 않았습니다.\n\nNetlify > Site settings > Environment variables 에서\nVITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY 를 추가하고\nDeploys > Trigger deploy 로 재배포해 주세요.'
+  if (typeof document !== 'undefined') {
+    document.body.innerHTML = `<pre style="padding:24px;font-family:system-ui;color:#c62828;white-space:pre-wrap;line-height:1.6">${msg}</pre>`
+  }
+  throw new Error(msg)
 }
 
 // ── 자동 로그인(Remember me) ─────────────────────────────────
