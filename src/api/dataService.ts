@@ -426,15 +426,16 @@ export async function createPost(data: Partial<Post>): Promise<Post> {
   if (error) throw error
 
   // poll 옵션이 있으면 별도 insert
+  let newPoll: Poll | null = null
   if (data.poll && data.poll.options.length) {
     const opts = data.poll.options.map((o, i) => ({ post_id: row.id, text: o.text, position: i }))
     const { error: pErr } = await supabase.from('poll_options').insert(opts)
-    if (pErr) throw pErr
+    if (pErr) {
+      console.error('[createPost] poll_options insert failed:', pErr)
+      throw pErr
+    }
+    newPoll = { options: data.poll.options.map(o => ({ text: o.text, votes: [] })) }
   }
-
-  const newPoll: Poll | null = data.poll
-    ? { options: data.poll.options.map(o => ({ text: o.text, votes: [] })) }
-    : null
   const post = rowToPost(row as PostRow, [], data.category === '기도요청' ? [] : null, newPoll)
   cache.posts.unshift(post)
   cache.postsById.set(post.id, post)
@@ -453,8 +454,24 @@ export async function updatePost(id: string, updates: Partial<Post>): Promise<Po
   const { data, error } = await supabase.from('posts').update(dbUpdates).eq('id', id).select().single()
   if (error) throw error
 
+  // poll 처리: updates.poll 이 명시되면 기존 옵션 삭제 후 재생성
+  let nextPoll: Poll | null | undefined
+  if (updates.poll !== undefined) {
+    const { error: dErr } = await supabase.from('poll_options').delete().eq('post_id', id)
+    if (dErr) { console.error('[updatePost] poll_options delete failed:', dErr); throw dErr }
+    if (updates.poll && updates.poll.options.length) {
+      const opts = updates.poll.options.map((o, i) => ({ post_id: id, text: o.text, position: i }))
+      const { error: iErr } = await supabase.from('poll_options').insert(opts)
+      if (iErr) { console.error('[updatePost] poll_options insert failed:', iErr); throw iErr }
+      nextPoll = { options: updates.poll.options.map(o => ({ text: o.text, votes: [] })) }
+    } else {
+      nextPoll = null
+    }
+  }
+
   const existing = cache.postsById.get(id)
-  const updated = rowToPost(data as PostRow, existing?.likes ?? [], existing?.prayers ?? null, existing?.poll ?? null)
+  const finalPoll = nextPoll !== undefined ? nextPoll : (existing?.poll ?? null)
+  const updated = rowToPost(data as PostRow, existing?.likes ?? [], existing?.prayers ?? null, finalPoll)
   cache.postsById.set(id, updated)
   const idx = cache.posts.findIndex(p => p.id === id)
   if (idx >= 0) cache.posts[idx] = updated
