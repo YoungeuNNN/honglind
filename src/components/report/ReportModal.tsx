@@ -12,19 +12,21 @@ export function ReportModal() {
   const [selectedReason, setSelectedReason] = useState<string | null>(null)
   const [detail, setDetail] = useState('')
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedReason || !user) return
-    DS.createReport({
-      reporterId: user.id,
-      targetType: reportModal.targetType,
-      targetId: reportModal.targetId,
-      reason: selectedReason,
-      detail: detail.trim(),
-    })
-    closeReportModal()
-    setSelectedReason(null)
-    setDetail('')
-    toast('신고가 접수되었습니다.')
+    try {
+      await DS.createReport({
+        reporterId: user.id,
+        targetType: reportModal.targetType,
+        targetId: reportModal.targetId,
+        reason: selectedReason,
+        detail: detail.trim(),
+      })
+      closeReportModal()
+      setSelectedReason(null)
+      setDetail('')
+      toast('신고가 접수되었습니다.')
+    } catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
   const handleOverlayClick = (e: React.MouseEvent) => {

@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useToastStore } from '@/components/ui/Toast'
 import { isPasswordValid, getPasswordRules, isValidEmail } from '@/utils/helpers'
 import * as DS from '@/api/dataService'
+import { supabase, setRememberMe, getRememberMe } from '@/api/supabase'
 
 export function AuthPage() {
   const navigate = useNavigate()
@@ -15,6 +16,7 @@ export function AuthPage() {
   // login state
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPw, setLoginPw] = useState('')
+  const [rememberMe, setRememberMeState] = useState<boolean>(getRememberMe())
 
   // register state
   const [regEmail, setRegEmail] = useState('')
@@ -32,10 +34,11 @@ export function AuthPage() {
 
   if (user) { navigate('/'); return null }
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setError('')
     if (!loginEmail || !loginPw) { setError('이메일과 비밀번호를 입력하세요.'); return }
-    const result = login(loginEmail, loginPw)
+    setRememberMe(rememberMe)  // 로그인 전에 storage 정책 결정
+    const result = await login(loginEmail, loginPw)
     if (!result.ok) { setError(result.error || '로그인 실패'); return }
     navigate('/')
   }
@@ -48,30 +51,40 @@ export function AuthPage() {
     setEmailChecked(true)
   }
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     setError('')
     if (!emailChecked) { setError('이메일 중복확인을 해주세요.'); return }
     if (!isPasswordValid(regPw)) { setError('비밀번호 조건을 모두 충족해야 합니다.'); return }
     if (regPw !== regPwConfirm) { setError('비밀번호가 일치하지 않습니다.'); return }
     if (!regNickname.trim()) { setError('닉네임을 입력하세요.'); return }
-    register({ nickname: regNickname.trim(), email: regEmail, password: regPw })
-    toast('가입을 환영합니다! 은혜 가운데 교제하세요.')
-    navigate('/')
+    setRememberMe(true)  // 가입 시는 자동 로그인 기본값
+    try {
+      await register({ nickname: regNickname.trim(), email: regEmail, password: regPw })
+      toast('가입을 환영합니다! 은혜 가운데 교제하세요.')
+      navigate('/')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '가입에 실패했습니다.')
+    }
   }
 
-  const verifyResetEmail = () => {
+  const verifyResetEmail = async () => {
     if (!resetEmail) { setError('이메일을 입력하세요.'); return }
-    if (!DS.findUserByEmail(resetEmail)) { setError('등록되지 않은 이메일입니다.'); return }
     setError('')
-    setResetStep(2)
+    // Supabase 표준 — 비밀번호 재설정 메일 발송
+    const { error: rErr } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: window.location.origin + '/auth',
+    })
+    if (rErr) { setError(rErr.message); return }
+    toast('비밀번호 재설정 링크를 메일로 보냈습니다.')
+    setMode('login')
   }
 
-  const handlePasswordReset = () => {
+  const handlePasswordReset = async () => {
+    // 사용자가 메일 링크를 통해 들어왔을 때 (recovery session) 활용
     if (!isPasswordValid(resetPw)) { setError('비밀번호 조건을 충족해야 합니다.'); return }
     if (resetPw !== resetPwConfirm) { setError('비밀번호가 일치하지 않습니다.'); return }
-    const u = DS.findUserByEmail(resetEmail)
-    if (!u) { setError('오류가 발생했습니다.'); return }
-    DS.updateUser(u.id, { password: resetPw })
+    const { error: uErr } = await supabase.auth.updateUser({ password: resetPw })
+    if (uErr) { setError(uErr.message); return }
     toast('비밀번호가 변경되었습니다. 새 비밀번호로 로그인하세요.')
     setMode('login')
     setError('')
@@ -114,6 +127,15 @@ export function AuthPage() {
               <label>비밀번호</label>
               <input type="password" className="form-input" placeholder="비밀번호를 입력하세요" value={loginPw} onChange={e => setLoginPw(e.target.value)} />
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--subtext)', cursor: 'pointer', marginBottom: 12 }}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={e => setRememberMeState(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: 'var(--primary)' }}
+              />
+              자동 로그인
+            </label>
             <button type="submit" className="auth-btn">로그인</button>
             <div className="auth-switch">계정이 없으신가요? <a onClick={() => { setMode('register'); setError('') }}>회원가입</a></div>
             <div className="auth-switch" style={{ marginTop: 8 }}><a onClick={() => { setMode('reset'); setError(''); setResetStep(1) }}>비밀번호를 잊으셨나요?</a></div>

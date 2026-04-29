@@ -24,14 +24,14 @@ export function NotificationPanel() {
   }, [])
 
   const handleClick = (notifId: string, postId: string) => {
-    DS.markRead(notifId)
+    DS.markRead(notifId).catch(console.error)
     setOpen(false)
     setTick(t => t + 1)
     if (postId) navigate(`/post/${postId}`)
   }
 
   const handleMarkAll = () => {
-    if (user) { DS.markAllRead(user.id); setTick(t => t + 1) }
+    if (user) { DS.markAllRead(user.id).catch(console.error); setTick(t => t + 1) }
   }
 
   return (

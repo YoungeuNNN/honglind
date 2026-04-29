@@ -42,8 +42,8 @@ export function AdminPage() {
               <div className="label" style={{marginTop:4}}>상태: {r.status==='pending'?<span style={{color:'var(--danger)',fontWeight:600}}>대기중</span>:r.status==='resolved'?<span style={{color:'var(--success)'}}>처리됨</span>:<span style={{color:'var(--subtext)'}}>기각</span>}</div>
             </div>
             {r.status==='pending'&&<div className="admin-card-actions">
-              <button className="btn btn-primary btn-small" onClick={()=>{DS.updateReport(r.id,{status:'resolved'});toast('신고가 처리되었습니다.');rerender()}}>처리</button>
-              <button className="btn btn-secondary btn-small" onClick={()=>{DS.updateReport(r.id,{status:'dismissed'});toast('신고가 기각되었습니다.');rerender()}}>기각</button>
+              <button className="btn btn-primary btn-small" onClick={async ()=>{await DS.updateReport(r.id,{status:'resolved'});toast('신고가 처리되었습니다.');rerender()}}>처리</button>
+              <button className="btn btn-secondary btn-small" onClick={async ()=>{await DS.updateReport(r.id,{status:'dismissed'});toast('신고가 기각되었습니다.');rerender()}}>기각</button>
             </div>}
           </div>
         ))
@@ -55,8 +55,8 @@ export function AdminPage() {
             <div className="label">가입일: {new Date(u.createdAt).toLocaleDateString('ko-KR')} {u.banned&&<span style={{color:'var(--danger)',fontWeight:600}}>· 정지됨</span>}</div>
           </div>
           <div className="admin-card-actions">
-            {u.banned?<button className="btn btn-primary btn-small" onClick={()=>{DS.updateUser(u.id,{banned:false});toast('정지가 해제되었습니다.');rerender()}}>정지 해제</button>:
-              <button className="btn btn-danger-solid btn-small" onClick={()=>{if(!confirm('이 사용자를 정지하시겠습니까?'))return;DS.updateUser(u.id,{banned:true});toast('사용자가 정지되었습니다.');rerender()}}>정지</button>}
+            {u.banned?<button className="btn btn-primary btn-small" onClick={async ()=>{await DS.updateUser(u.id,{banned:false});toast('정지가 해제되었습니다.');rerender()}}>정지 해제</button>:
+              <button className="btn btn-danger-solid btn-small" onClick={async ()=>{if(!confirm('이 사용자를 정지하시겠습니까?'))return;await DS.updateUser(u.id,{banned:true});toast('사용자가 정지되었습니다.');rerender()}}>정지</button>}
           </div>
         </div>
       ))}
@@ -65,7 +65,7 @@ export function AdminPage() {
           <div className="settings-section" style={{marginBottom:16}}>
             <div className="form-group"><label>공지 제목</label><input type="text" className="form-input" value={annTitle} onChange={e=>setAnnTitle(e.target.value)} placeholder="공지 제목"/></div>
             <div className="form-group"><label>공지 내용</label><textarea className="form-input" value={annContent} onChange={e=>setAnnContent(e.target.value)} placeholder="공지 내용" style={{minHeight:80,resize:'vertical'}}/></div>
-            <button className="btn btn-primary btn-small" onClick={()=>{if(!annTitle.trim()||!annContent.trim()){toast('제목과 내용을 입력하세요.');return};DS.createAnnouncementItem({authorId:user.id,title:annTitle.trim(),content:annContent.trim()});toast('공지가 등록되었습니다.');setAnnTitle('');setAnnContent('');rerender()}}>공지 등록</button>
+            <button className="btn btn-primary btn-small" onClick={async ()=>{if(!annTitle.trim()||!annContent.trim()){toast('제목과 내용을 입력하세요.');return}await DS.createAnnouncementItem({authorId:user.id,title:annTitle.trim(),content:annContent.trim()});toast('공지가 등록되었습니다.');setAnnTitle('');setAnnContent('');rerender()}}>공지 등록</button>
           </div>
           {announcements.map(a=>(
             <div key={a.id} className="admin-card fade-in">
@@ -74,7 +74,7 @@ export function AdminPage() {
                 <div className="label" style={{marginTop:4}}>{a.content.substring(0,80)}{a.content.length>80?'...':''}</div>
                 <div className="label">{timeAgo(a.createdAt)}</div>
               </div>
-              <div className="admin-card-actions"><button className="btn btn-danger btn-small" onClick={()=>{if(!confirm('공지를 삭제하시겠습니까?'))return;DS.deleteAnnouncementItem(a.id);toast('공지가 삭제되었습니다.');rerender()}}>삭제</button></div>
+              <div className="admin-card-actions"><button className="btn btn-danger btn-small" onClick={async ()=>{if(!confirm('공지를 삭제하시겠습니까?'))return;await DS.deleteAnnouncementItem(a.id);toast('공지가 삭제되었습니다.');rerender()}}>삭제</button></div>
             </div>
           ))}
         </>

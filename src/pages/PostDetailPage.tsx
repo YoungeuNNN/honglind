@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useUIStore } from '@/stores/uiStore'
@@ -6,7 +6,7 @@ import { useToastStore } from '@/components/ui/Toast'
 import * as DS from '@/api/dataService'
 import { timeAgo } from '@/utils/helpers'
 import { HeartIcon, BackIcon, FlagIcon, ShareIcon, BookmarkIcon } from '@/components/ui/Icons'
-import type { Comment as CommentType } from '@/types'
+import type { Comment as CommentType, Post } from '@/types'
 
 export function PostDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -18,12 +18,14 @@ export function PostDetailPage() {
   const rerender = () => setTick(t => t + 1)
   const [commentText, setCommentText] = useState('')
 
-  const posts = DS.getPosts()
-  const post = posts.find(p => p.id === id)
+  const post = id ? DS.getPostById(id) : undefined
   if (!post) { navigate('/'); return null }
 
-  // increment views
-  if (post) { post.views++; DS.savePosts(posts) }
+  // 조회수 증가 — 페이지 진입 시 1회
+  useEffect(() => {
+    if (id) DS.incrementViews(id).then(rerender).catch(console.error)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
 
   const allComments = DS.getComments().filter(c => c.postId === post.id)
   const topComments = allComments.filter(c => !c.parentId)
@@ -36,32 +38,47 @@ export function PostDetailPage() {
   const bookmarked = user ? DS.isBookmarked(user.id, post.id) : false
   const authorLabel = isOwner ? '나' : (post.authorId === 'deleted' ? '탈퇴한 사용자' : '익명')
 
-  const toggleLike = () => {
+  const toggleLike = async () => {
     if (!user) return
-    const i = post.likes.indexOf(user.id)
-    if (i >= 0) post.likes.splice(i, 1)
-    else { post.likes.push(user.id); DS.createNotification({ userId: post.authorId, type: 'like', postId: post.id, message: '누군가 회원님의 글을 좋아합니다.', read: false }) }
-    DS.savePosts(posts); rerender()
+    try {
+      const liked = await DS.togglePostLike(post.id)
+      if (liked && post.authorId !== 'deleted' && post.authorId !== user.id) {
+        await DS.createNotification({ userId: post.authorId, type: 'like', postId: post.id, message: '누군가 회원님의 글을 좋아합니다.', read: false })
+      }
+      rerender()
+    } catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
-  const togglePrayer = () => {
+  const togglePrayer = async () => {
     if (!user) return
-    if (!post.prayers) post.prayers = []
-    const i = post.prayers.indexOf(user.id)
-    if (i >= 0) post.prayers.splice(i, 1)
-    else { post.prayers.push(user.id); toast('함께 기도합니다.'); DS.createNotification({ userId: post.authorId, type: 'prayer', postId: post.id, message: '누군가 회원님의 기도요청에 함께 기도합니다.', read: false }) }
-    DS.savePosts(posts); rerender()
+    try {
+      const prayed = await DS.togglePostPrayer(post.id)
+      if (prayed) {
+        toast('함께 기도합니다.')
+        if (post.authorId !== 'deleted' && post.authorId !== user.id) {
+          await DS.createNotification({ userId: post.authorId, type: 'prayer', postId: post.id, message: '누군가 회원님의 기도요청에 함께 기도합니다.', read: false })
+        }
+      }
+      rerender()
+    } catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!confirm('정말 삭제하시겠습니까?')) return
-    DS.deletePost(post.id); toast('게시글이 삭제되었습니다.'); navigate('/')
+    try {
+      await DS.deletePost(post.id)
+      toast('게시글이 삭제되었습니다.')
+      navigate('/')
+    } catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
-  const handleBookmark = () => {
+  const handleBookmark = async () => {
     if (!user) return
-    const added = DS.toggleBookmark(user.id, post.id)
-    toast(added ? '게시글을 저장했습니다.' : '저장을 취소했습니다.'); rerender()
+    try {
+      const added = await DS.toggleBookmark(user.id, post.id)
+      toast(added ? '게시글을 저장했습니다.' : '저장을 취소했습니다.')
+      rerender()
+    } catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
   const handleShare = () => {
@@ -69,24 +86,35 @@ export function PostDetailPage() {
     navigator.clipboard?.writeText(url).then(() => toast('링크가 복사되었습니다.'))
   }
 
-  const handleBlock = (blockedId: string) => {
+  const handleBlock = async (blockedId: string) => {
     if (!user || !confirm('이 사용자를 차단하시겠습니까?\n\n차단하면 해당 사용자의 글과 댓글이 보이지 않습니다.')) return
-    DS.blockUser(user.id, blockedId); toast('사용자를 차단했습니다.'); navigate('/')
+    try {
+      await DS.blockUser(user.id, blockedId)
+      toast('사용자를 차단했습니다.')
+      navigate('/')
+    } catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
-  const addComment = () => {
+  const addComment = async () => {
     if (!user || !commentText.trim()) return
-    DS.createComment({ postId: post.id, authorId: user.id, parentId: null, content: commentText.trim() })
-    DS.createNotification({ userId: post.authorId, type: 'comment', postId: post.id, message: '누군가 회원님의 글에 댓글을 남겼습니다.', read: false })
-    setCommentText(''); toast('댓글이 등록되었습니다.'); rerender()
+    try {
+      await DS.createComment({ postId: post.id, authorId: user.id, parentId: null, content: commentText.trim() })
+      if (post.authorId !== 'deleted' && post.authorId !== user.id) {
+        await DS.createNotification({ userId: post.authorId, type: 'comment', postId: post.id, message: '누군가 회원님의 글에 댓글을 남겼습니다.', read: false })
+      }
+      setCommentText('')
+      toast('댓글이 등록되었습니다.')
+      rerender()
+    } catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
-  const togglePrayerAnswered = () => {
+  const togglePrayerAnswered = async () => {
     if (!user) return
-    post.prayerAnswered = !post.prayerAnswered
-    DS.savePosts(posts)
-    toast(post.prayerAnswered ? '기도 응답을 표시했습니다.' : '기도 응답 표시를 취소했습니다.')
-    rerender()
+    try {
+      await DS.updatePost(post.id, { prayerAnswered: !post.prayerAnswered })
+      toast(!post.prayerAnswered ? '기도 응답을 표시했습니다.' : '기도 응답 표시를 취소했습니다.')
+      rerender()
+    } catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
   return (
@@ -149,7 +177,7 @@ export function PostDetailPage() {
               </button>
               {isOwner && (
                 <button className={`btn ${post.prayerAnswered ? 'btn-primary' : 'btn-secondary'} btn-small`} onClick={togglePrayerAnswered}>
-                  {post.prayerAnswered ? '\u2713 응답 받았습니다' : '응답 받음 표시'}
+                  {post.prayerAnswered ? '✓ 응답 받았습니다' : '응답 받음 표시'}
                 </button>
               )}
             </>
@@ -223,31 +251,33 @@ function CommentItem({ comment: c, allComments, postAuthorId, postId, rerender }
     )
   }
 
-  const toggleLike = () => {
+  const toggleLike = async () => {
     if (!user) return
-    const comments = DS.getComments()
-    const target = comments.find(x => x.id === c.id)
-    if (!target) return
-    const i = target.likes.indexOf(user.id)
-    if (i >= 0) target.likes.splice(i, 1); else target.likes.push(user.id)
-    DS.saveComments(comments); rerender()
+    try { await DS.toggleCommentLike(c.id); rerender() }
+    catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
-  const addReply = () => {
+  const addReply = async () => {
     if (!user || !replyText.trim()) return
-    DS.createComment({ postId, authorId: user.id, parentId: c.id, content: replyText.trim() })
-    DS.createNotification({ userId: c.authorId, type: 'reply', postId, message: '누군가 회원님의 댓글에 답글을 남겼습니다.', read: false })
-    setReplyText(''); setShowReply(false); toast('답글이 등록되었습니다.'); rerender()
+    try {
+      await DS.createComment({ postId, authorId: user.id, parentId: c.id, content: replyText.trim() })
+      if (c.authorId !== 'deleted' && c.authorId !== user.id) {
+        await DS.createNotification({ userId: c.authorId, type: 'reply', postId, message: '누군가 회원님의 댓글에 답글을 남겼습니다.', read: false })
+      }
+      setReplyText(''); setShowReply(false); toast('답글이 등록되었습니다.'); rerender()
+    } catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!confirm('댓글을 삭제하시겠습니까?')) return
-    DS.deleteComment(c.id); toast('댓글이 삭제되었습니다.'); rerender()
+    try { await DS.deleteComment(c.id); toast('댓글이 삭제되었습니다.'); rerender() }
+    catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editText.trim()) { toast('댓글 내용을 입력하세요.'); return }
-    DS.updateComment(c.id, { content: editText.trim() }); setEditing(false); toast('댓글이 수정되었습니다.'); rerender()
+    try { await DS.updateComment(c.id, { content: editText.trim() }); setEditing(false); toast('댓글이 수정되었습니다.'); rerender() }
+    catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
   return (
@@ -298,28 +328,26 @@ function CommentItem({ comment: c, allComments, postAuthorId, postId, rerender }
   )
 }
 
-function PollSection({ post, userId, rerender }: { post: any; userId?: string; rerender: () => void }) {
+function PollSection({ post, userId, rerender }: { post: Post; userId?: string; rerender: () => void }) {
   const toast = useToastStore(s => s.show)
+  if (!post.poll) return null
   const poll = post.poll
-  const totalVotes = poll.options.reduce((s: number, o: any) => s + o.votes.length, 0)
-  const hasVoted = poll.options.some((o: any) => o.votes.includes(userId))
+  const totalVotes = poll.options.reduce((s, o) => s + o.votes.length, 0)
+  const hasVoted = userId ? poll.options.some(o => o.votes.includes(userId)) : false
 
-  const vote = (idx: number) => {
-    if (!userId) return
-    const posts = DS.getPosts()
-    const p = posts.find((x: any) => x.id === post.id)
-    if (!p?.poll || p.poll.options.some((o: any) => o.votes.includes(userId))) return
-    p.poll.options[idx].votes.push(userId)
-    DS.savePosts(posts); toast('투표했습니다!'); rerender()
+  const vote = async (idx: number) => {
+    if (!userId || hasVoted) return
+    try { await DS.togglePollVote(post.id, idx); toast('투표했습니다!'); rerender() }
+    catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
   if (hasVoted || post.authorId === userId) {
     return (
       <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-md)', padding: 16, marginBottom: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>{'\u{1F4CA}'} 투표 결과 ({totalVotes}표)</div>
-        {poll.options.map((o: any, i: number) => {
+        {poll.options.map((o, i) => {
           const pct = totalVotes ? Math.round(o.votes.length / totalVotes * 100) : 0
-          const isMyVote = o.votes.includes(userId)
+          const isMyVote = userId ? o.votes.includes(userId) : false
           return (
             <div key={i} style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
@@ -339,7 +367,7 @@ function PollSection({ post, userId, rerender }: { post: any; userId?: string; r
   return (
     <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-md)', padding: 16, marginBottom: 16 }}>
       <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>{'\u{1F5F3}'} 투표하기</div>
-      {poll.options.map((o: any, i: number) => (
+      {poll.options.map((o, i) => (
         <button key={i} className="btn btn-secondary" onClick={() => vote(i)}
           style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 6, padding: '10px 16px', fontSize: 14 }}>
           {o.text}

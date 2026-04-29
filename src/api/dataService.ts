@@ -1,220 +1,735 @@
 /**
- * DataService - localStorage 기반 데이터 레이어
+ * DataService - Supabase 백엔드 + In-memory Cache
  *
- * VITE_USE_MOCK=true일 때 사용됨.
- * 백엔드 API가 준비되면 api/*.api.ts로 자동 전환.
+ * 전략:
+ *   - 부팅 시 loadAll() 로 모든 데이터를 한 번 fetch → 메모리 cache
+ *   - get/find/is/has 함수: cache 에서 동기 반환 (기존 인터페이스 유지)
+ *   - create/update/delete 함수: async — supabase 에 쓰고 cache 갱신
+ *
+ * 인증은 Supabase Auth (auth.users + profiles).
  */
-import { uuid } from '@/utils/helpers'
+import { supabase } from './supabase'
 import type {
   User, Post, Comment, Notification, Message,
   Report, Block, Bookmark, Announcement, Conversation,
+  Poll, PollOption,
 } from '@/types'
 
-// ── Storage Helpers ─────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// In-Memory Cache
+// ════════════════════════════════════════════════════════════
 
-function store(key: string, val: unknown) {
-  localStorage.setItem('honglind_' + key, JSON.stringify(val))
+interface Cache {
+  users: User[]
+  usersById: Map<string, User>
+  posts: Post[]
+  postsById: Map<string, Post>
+  comments: Comment[]
+  bookmarks: Bookmark[]
+  blocks: Block[]
+  notifications: Notification[]
+  messages: Message[]
+  reports: Report[]
+  announcements: Announcement[]
 }
 
-function load<T>(key: string): T | null {
-  try {
-    return JSON.parse(localStorage.getItem('honglind_' + key) || 'null')
-  } catch {
-    return null
+const cache: Cache = {
+  users: [], usersById: new Map(),
+  posts: [], postsById: new Map(),
+  comments: [],
+  bookmarks: [],
+  blocks: [],
+  notifications: [],
+  messages: [],
+  reports: [],
+  announcements: [],
+}
+
+let loaded = false
+
+// ════════════════════════════════════════════════════════════
+// DB Row → App Model 매핑
+// ════════════════════════════════════════════════════════════
+
+interface ProfileRow {
+  id: string; nickname: string; email: string | null; affiliation: string | null
+  role: string; banned: boolean; created_at: string
+}
+function rowToUser(r: ProfileRow): User {
+  return {
+    id: r.id,
+    nickname: r.nickname,
+    email: r.email ?? '',
+    affiliation: r.affiliation ?? undefined,
+    role: (r.role === 'admin' ? 'admin' : 'user'),
+    banned: r.banned,
+    createdAt: r.created_at,
   }
 }
 
-// ── Users ───────────────────────────────────────────────────
+interface PostRow {
+  id: string; author_id: string | null; category: string; title: string; content: string
+  views: number; cheongbing: Post['cheongbing']; sermon_verse: string | null
+  prayer_answered: boolean; created_at: string; updated_at: string | null
+}
+function rowToPost(r: PostRow, likes: string[], prayers: string[] | null, poll: Poll | null): Post {
+  return {
+    id: r.id,
+    authorId: r.author_id ?? 'deleted',
+    category: r.category,
+    title: r.title,
+    content: r.content,
+    likes,
+    views: r.views,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    cheongbing: r.cheongbing,
+    prayers,
+    prayerAnswered: r.prayer_answered,
+    sermonVerse: r.sermon_verse,
+    poll,
+  }
+}
 
-export function getUsers(): User[] { return load('users') ?? [] }
-export function saveUsers(users: User[]) { store('users', users) }
-export function getUserById(id: string) { return getUsers().find(u => u.id === id) }
-export function findUserByEmail(email: string) { return getUsers().find(u => u.email === email) }
+interface CommentRow {
+  id: string; post_id: string; author_id: string | null; parent_id: string | null
+  content: string; created_at: string; updated_at: string | null
+}
+function rowToComment(r: CommentRow, likes: string[]): Comment {
+  return {
+    id: r.id, postId: r.post_id,
+    authorId: r.author_id ?? 'deleted',
+    parentId: r.parent_id,
+    content: r.content,
+    likes,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at ?? undefined,
+  }
+}
 
-export function createUser(data: Partial<User>): User {
-  const users = getUsers()
-  const user: User = { id: uuid(), createdAt: new Date().toISOString(), role: 'user', banned: false, ...data } as User
-  users.push(user)
-  saveUsers(users)
+interface NotificationRow {
+  id: string; user_id: string; type: string; post_id: string | null
+  message: string | null; read: boolean; created_at: string
+}
+function rowToNotification(r: NotificationRow): Notification {
+  return {
+    id: r.id, userId: r.user_id,
+    type: r.type as Notification['type'],
+    postId: r.post_id ?? '',
+    message: r.message ?? '',
+    read: r.read,
+    createdAt: r.created_at,
+  }
+}
+
+interface MessageRow {
+  id: string; sender_id: string; receiver_id: string
+  content: string; read: boolean; created_at: string
+}
+function rowToMessage(r: MessageRow): Message {
+  return {
+    id: r.id, senderId: r.sender_id, receiverId: r.receiver_id,
+    content: r.content, read: r.read, createdAt: r.created_at,
+  }
+}
+
+interface ReportRow {
+  id: string; reporter_id: string; target_type: string; target_id: string
+  reason: string; detail: string | null; status: string; created_at: string
+}
+function rowToReport(r: ReportRow): Report {
+  return {
+    id: r.id, reporterId: r.reporter_id,
+    targetType: r.target_type as Report['targetType'],
+    targetId: r.target_id,
+    reason: r.reason,
+    detail: r.detail ?? '',
+    status: r.status as Report['status'],
+    createdAt: r.created_at,
+  }
+}
+
+interface AnnouncementRow {
+  id: string; author_id: string | null; title: string; content: string; created_at: string
+}
+function rowToAnnouncement(r: AnnouncementRow): Announcement {
+  return {
+    id: r.id, authorId: r.author_id ?? '',
+    title: r.title, content: r.content, createdAt: r.created_at,
+  }
+}
+
+interface BookmarkRow { user_id: string; post_id: string; created_at: string }
+interface BlockRow { blocker_id: string; blocked_id: string; created_at: string }
+
+// ════════════════════════════════════════════════════════════
+// Bootstrap — 모든 데이터 fetch
+// ════════════════════════════════════════════════════════════
+
+export async function loadAll(): Promise<void> {
+  if (loaded) return
+
+  const [
+    profilesRes, postsRes, postLikesRes, postPrayersRes,
+    pollOptionsRes, pollVotesRes,
+    commentsRes, commentLikesRes,
+    bookmarksRes, blocksRes,
+    notificationsRes, messagesRes,
+    reportsRes, announcementsRes,
+  ] = await Promise.all([
+    supabase.from('profiles').select('*'),
+    supabase.from('posts').select('*'),
+    supabase.from('post_likes').select('post_id, user_id'),
+    supabase.from('post_prayers').select('post_id, user_id'),
+    supabase.from('poll_options').select('id, post_id, text, position').order('position'),
+    supabase.from('poll_votes').select('option_id, user_id'),
+    supabase.from('comments').select('*'),
+    supabase.from('comment_likes').select('comment_id, user_id'),
+    supabase.from('bookmarks').select('*'),
+    supabase.from('blocks').select('*'),
+    supabase.from('notifications').select('*').order('created_at', { ascending: false }),
+    supabase.from('messages').select('*'),
+    supabase.from('reports').select('*'),
+    supabase.from('announcements').select('*').order('created_at', { ascending: false }),
+  ])
+
+  // 에러 체크
+  const errors = [
+    profilesRes, postsRes, postLikesRes, postPrayersRes, pollOptionsRes, pollVotesRes,
+    commentsRes, commentLikesRes, bookmarksRes, blocksRes,
+    notificationsRes, messagesRes, reportsRes, announcementsRes,
+  ].map(r => r.error).filter(Boolean)
+  if (errors.length) {
+    console.error('loadAll errors:', errors)
+  }
+
+  // Users
+  cache.users = (profilesRes.data ?? []).map(rowToUser)
+  cache.usersById = new Map(cache.users.map(u => [u.id, u]))
+
+  // Likes 인덱스
+  const postLikes = new Map<string, string[]>()
+  ;(postLikesRes.data ?? []).forEach(l => {
+    const arr = postLikes.get(l.post_id) ?? []
+    arr.push(l.user_id); postLikes.set(l.post_id, arr)
+  })
+  // Prayers 인덱스
+  const postPrayers = new Map<string, string[]>()
+  ;(postPrayersRes.data ?? []).forEach(p => {
+    const arr = postPrayers.get(p.post_id) ?? []
+    arr.push(p.user_id); postPrayers.set(p.post_id, arr)
+  })
+  // Poll options + votes
+  const optionsByPost = new Map<string, { id: string; text: string; position: number }[]>()
+  ;(pollOptionsRes.data ?? []).forEach(o => {
+    const arr = optionsByPost.get(o.post_id) ?? []
+    arr.push(o); optionsByPost.set(o.post_id, arr)
+  })
+  const votesByOption = new Map<string, string[]>()
+  ;(pollVotesRes.data ?? []).forEach(v => {
+    const arr = votesByOption.get(v.option_id) ?? []
+    arr.push(v.user_id); votesByOption.set(v.option_id, arr)
+  })
+
+  // Posts
+  cache.posts = (postsRes.data ?? []).map(p => {
+    const likes = postLikes.get(p.id) ?? []
+    const prayersArr = postPrayers.get(p.id) ?? null
+    const opts = optionsByPost.get(p.id)
+    const poll: Poll | null = opts && opts.length
+      ? { options: opts.sort((a, b) => a.position - b.position).map<PollOption>(o => ({ text: o.text, votes: votesByOption.get(o.id) ?? [] })) }
+      : null
+    return rowToPost(p as PostRow, likes, p.category === '기도요청' ? prayersArr : null, poll)
+  }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  cache.postsById = new Map(cache.posts.map(p => [p.id, p]))
+
+  // Comments
+  const commentLikes = new Map<string, string[]>()
+  ;(commentLikesRes.data ?? []).forEach(l => {
+    const arr = commentLikes.get(l.comment_id) ?? []
+    arr.push(l.user_id); commentLikes.set(l.comment_id, arr)
+  })
+  cache.comments = (commentsRes.data ?? []).map(c => rowToComment(c as CommentRow, commentLikes.get(c.id) ?? []))
+
+  // Bookmarks / Blocks
+  cache.bookmarks = (bookmarksRes.data ?? []).map(b => ({
+    userId: (b as BookmarkRow).user_id, postId: (b as BookmarkRow).post_id, createdAt: (b as BookmarkRow).created_at,
+  }))
+  cache.blocks = (blocksRes.data ?? []).map(b => ({
+    blockerId: (b as BlockRow).blocker_id, blockedId: (b as BlockRow).blocked_id, createdAt: (b as BlockRow).created_at,
+  }))
+
+  cache.notifications = (notificationsRes.data ?? []).map(n => rowToNotification(n as NotificationRow))
+  cache.messages = (messagesRes.data ?? []).map(m => rowToMessage(m as MessageRow))
+  cache.reports = (reportsRes.data ?? []).map(r => rowToReport(r as ReportRow))
+  cache.announcements = (announcementsRes.data ?? []).map(a => rowToAnnouncement(a as AnnouncementRow))
+
+  loaded = true
+}
+
+/** 외부에서 cache 강제 리로드 */
+export async function reloadAll(): Promise<void> {
+  loaded = false
+  await loadAll()
+}
+
+// ════════════════════════════════════════════════════════════
+// Session (Supabase Auth wrapper)
+// ════════════════════════════════════════════════════════════
+
+let _sessionUser: User | null = null
+
+export function setSession(user: User | null) {
+  _sessionUser = user
+}
+export function getSession(): User | null {
+  return _sessionUser
+}
+export function currentUser(): User | null {
+  return _sessionUser
+}
+
+/** auth.users.id → cache profile 동기화 */
+export async function syncSessionFromAuth(): Promise<User | null> {
+  const { data } = await supabase.auth.getUser()
+  if (!data.user) { _sessionUser = null; return null }
+  // cache 에서 우선 조회, 없으면 DB
+  let user = cache.usersById.get(data.user.id) ?? null
+  if (!user) {
+    const { data: row } = await supabase.from('profiles').select('*').eq('id', data.user.id).single()
+    if (row) {
+      user = rowToUser(row as ProfileRow)
+      cache.usersById.set(user.id, user)
+      cache.users.push(user)
+    }
+  }
+  _sessionUser = user
   return user
 }
 
-export function updateUser(id: string, updates: Partial<User>): User | null {
-  const users = getUsers()
-  const idx = users.findIndex(u => u.id === id)
-  if (idx < 0) return null
-  Object.assign(users[idx], updates)
-  saveUsers(users)
-  return users[idx]
+export async function refreshSession(): Promise<void> {
+  await syncSessionFromAuth()
 }
 
-export function deleteUser(id: string) {
-  const posts = getPosts().map(p => p.authorId === id ? { ...p, authorId: 'deleted' } : p)
-  savePosts(posts)
-  const comments = getComments().map(c => c.authorId === id ? { ...c, authorId: 'deleted' } : c)
-  saveComments(comments)
-  saveUsers(getUsers().filter(u => u.id !== id))
+// ════════════════════════════════════════════════════════════
+// Users
+// ════════════════════════════════════════════════════════════
+
+export function getUsers(): User[] { return cache.users }
+export function getUserById(id: string): User | undefined { return cache.usersById.get(id) }
+export function findUserByEmail(email: string): User | undefined {
+  return cache.users.find(u => u.email === email)
 }
 
-// ── Posts ────────────────────────────────────────────────────
+// signUp/signIn 용 — authStore 에서 사용
+export async function signUp(email: string, password: string, nickname: string): Promise<User> {
+  const { data, error } = await supabase.auth.signUp({
+    email, password,
+    options: { data: { nickname } },
+  })
+  if (error) throw error
+  if (!data.user) throw new Error('회원가입 실패')
+  // trigger 가 profiles 자동 생성. fetch.
+  // 이메일 인증이 켜져있으면 session 이 즉시 활성화되지 않을 수 있음.
+  let user: User | null = null
+  for (let i = 0; i < 5; i++) {
+    const { data: row } = await supabase.from('profiles').select('*').eq('id', data.user.id).maybeSingle()
+    if (row) { user = rowToUser(row as ProfileRow); break }
+    await new Promise(r => setTimeout(r, 200))
+  }
+  if (!user) throw new Error('프로필 생성에 실패했습니다.')
+  cache.users.push(user)
+  cache.usersById.set(user.id, user)
+  _sessionUser = user
+  return user
+}
 
-export function getPosts(): Post[] { return load('posts') ?? [] }
-export function savePosts(posts: Post[]) { store('posts', posts) }
-export function getPostById(id: string) { return getPosts().find(p => p.id === id) }
+export async function signIn(email: string, password: string): Promise<User> {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) throw new Error('이메일 또는 비밀번호가 올바르지 않습니다.')
+  if (!data.user) throw new Error('로그인 실패')
+  const user = await syncSessionFromAuth()
+  if (!user) throw new Error('프로필을 찾을 수 없습니다.')
+  if (user.banned) {
+    await supabase.auth.signOut()
+    _sessionUser = null
+    throw new Error('정지된 계정입니다. 관리자에게 문의하세요.')
+  }
+  return user
+}
 
-export function createPost(data: Partial<Post>): Post {
-  const posts = getPosts()
-  const post: Post = {
-    id: uuid(), likes: [], views: 0,
-    createdAt: new Date().toISOString(), updatedAt: null,
-    cheongbing: null, prayers: null, sermonVerse: null, poll: null,
-    ...data,
-  } as Post
-  posts.unshift(post)
-  savePosts(posts)
+export async function signOut(): Promise<void> {
+  await supabase.auth.signOut()
+  _sessionUser = null
+}
+
+export async function updateUser(id: string, updates: Partial<User>): Promise<User | null> {
+  const dbUpdates: Record<string, unknown> = {}
+  if (updates.nickname !== undefined) dbUpdates.nickname = updates.nickname
+  if (updates.affiliation !== undefined) dbUpdates.affiliation = updates.affiliation
+  if (updates.banned !== undefined) dbUpdates.banned = updates.banned
+  if (updates.role !== undefined) dbUpdates.role = updates.role
+
+  if (Object.keys(dbUpdates).length === 0 && updates.password === undefined) return cache.usersById.get(id) ?? null
+
+  if (updates.password) {
+    // 비밀번호 변경은 supabase.auth.updateUser 사용 (자기 자신만)
+    const { error } = await supabase.auth.updateUser({ password: updates.password })
+    if (error) throw error
+  }
+
+  if (Object.keys(dbUpdates).length > 0) {
+    const { data, error } = await supabase.from('profiles').update(dbUpdates).eq('id', id).select().single()
+    if (error) throw error
+    const user = rowToUser(data as ProfileRow)
+    cache.usersById.set(id, user)
+    const idx = cache.users.findIndex(u => u.id === id)
+    if (idx >= 0) cache.users[idx] = user
+    if (_sessionUser?.id === id) _sessionUser = user
+    return user
+  }
+  return cache.usersById.get(id) ?? null
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  // 본인 탈퇴: profiles row 삭제 (auth.users 는 admin 권한 필요라 그대로 둠)
+  const { error } = await supabase.from('profiles').delete().eq('id', id)
+  if (error) throw error
+  cache.usersById.delete(id)
+  cache.users = cache.users.filter(u => u.id !== id)
+  // 관련 posts/comments 의 author 는 'deleted' 로 표시
+  cache.posts.forEach(p => { if (p.authorId === id) p.authorId = 'deleted' })
+  cache.comments.forEach(c => { if (c.authorId === id) c.authorId = 'deleted' })
+  await supabase.auth.signOut()
+  _sessionUser = null
+}
+
+// ════════════════════════════════════════════════════════════
+// Posts
+// ════════════════════════════════════════════════════════════
+
+export function getPosts(): Post[] { return cache.posts }
+export function getPostById(id: string): Post | undefined { return cache.postsById.get(id) }
+
+export async function createPost(data: Partial<Post>): Promise<Post> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  const { data: row, error } = await supabase.from('posts').insert({
+    author_id: me.id,
+    category: data.category!,
+    title: data.title!,
+    content: data.content!,
+    cheongbing: data.cheongbing ?? null,
+    sermon_verse: data.sermonVerse ?? null,
+    prayer_answered: data.prayerAnswered ?? false,
+  }).select().single()
+  if (error) throw error
+
+  // poll 옵션이 있으면 별도 insert
+  if (data.poll && data.poll.options.length) {
+    const opts = data.poll.options.map((o, i) => ({ post_id: row.id, text: o.text, position: i }))
+    const { error: pErr } = await supabase.from('poll_options').insert(opts)
+    if (pErr) throw pErr
+  }
+
+  const newPoll: Poll | null = data.poll
+    ? { options: data.poll.options.map(o => ({ text: o.text, votes: [] })) }
+    : null
+  const post = rowToPost(row as PostRow, [], data.category === '기도요청' ? [] : null, newPoll)
+  cache.posts.unshift(post)
+  cache.postsById.set(post.id, post)
   return post
 }
 
-export function updatePost(id: string, updates: Partial<Post>): Post | null {
-  const posts = getPosts()
-  const idx = posts.findIndex(p => p.id === id)
-  if (idx < 0) return null
-  Object.assign(posts[idx], updates, { updatedAt: new Date().toISOString() })
-  savePosts(posts)
-  return posts[idx]
+export async function updatePost(id: string, updates: Partial<Post>): Promise<Post | null> {
+  const dbUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (updates.title !== undefined) dbUpdates.title = updates.title
+  if (updates.content !== undefined) dbUpdates.content = updates.content
+  if (updates.category !== undefined) dbUpdates.category = updates.category
+  if (updates.cheongbing !== undefined) dbUpdates.cheongbing = updates.cheongbing
+  if (updates.sermonVerse !== undefined) dbUpdates.sermon_verse = updates.sermonVerse
+  if (updates.prayerAnswered !== undefined) dbUpdates.prayer_answered = updates.prayerAnswered
+
+  const { data, error } = await supabase.from('posts').update(dbUpdates).eq('id', id).select().single()
+  if (error) throw error
+
+  const existing = cache.postsById.get(id)
+  const updated = rowToPost(data as PostRow, existing?.likes ?? [], existing?.prayers ?? null, existing?.poll ?? null)
+  cache.postsById.set(id, updated)
+  const idx = cache.posts.findIndex(p => p.id === id)
+  if (idx >= 0) cache.posts[idx] = updated
+  return updated
 }
 
-export function deletePost(id: string) {
-  savePosts(getPosts().filter(p => p.id !== id))
-  saveComments(getComments().filter(c => c.postId !== id))
+export async function deletePost(id: string): Promise<void> {
+  const { error } = await supabase.from('posts').delete().eq('id', id)
+  if (error) throw error
+  cache.postsById.delete(id)
+  cache.posts = cache.posts.filter(p => p.id !== id)
+  cache.comments = cache.comments.filter(c => c.postId !== id)
 }
 
-// ── Comments ────────────────────────────────────────────────
-
-export function getComments(): Comment[] { return load('comments') ?? [] }
-export function saveComments(cmts: Comment[]) { store('comments', cmts) }
-
-export function createComment(data: Partial<Comment>): Comment {
-  const cmts = getComments()
-  const comment: Comment = { id: uuid(), likes: [], createdAt: new Date().toISOString(), ...data } as Comment
-  cmts.push(comment)
-  saveComments(cmts)
-  return comment
-}
-
-export function updateComment(id: string, updates: Partial<Comment>): Comment | null {
-  const cmts = getComments()
-  const idx = cmts.findIndex(c => c.id === id)
-  if (idx < 0) return null
-  Object.assign(cmts[idx], updates, { updatedAt: new Date().toISOString() })
-  saveComments(cmts)
-  return cmts[idx]
-}
-
-export function deleteComment(id: string) {
-  saveComments(getComments().filter(c => c.id !== id && c.parentId !== id))
-}
-
-// ── Bookmarks ───────────────────────────────────────────────
-
-export function getBookmarks(): Bookmark[] { return load('bookmarks') ?? [] }
-export function saveBookmarks(bm: Bookmark[]) { store('bookmarks', bm) }
-
-export function toggleBookmark(userId: string, postId: string): boolean {
-  const bm = getBookmarks()
-  const idx = bm.findIndex(b => b.userId === userId && b.postId === postId)
-  if (idx >= 0) bm.splice(idx, 1)
-  else bm.push({ userId, postId, createdAt: new Date().toISOString() })
-  saveBookmarks(bm)
-  return idx < 0
-}
-
-export function isBookmarked(userId: string, postId: string): boolean {
-  return getBookmarks().some(b => b.userId === userId && b.postId === postId)
-}
-
-export function getUserBookmarks(userId: string): Bookmark[] {
-  return getBookmarks().filter(b => b.userId === userId)
-}
-
-// ── Blocks ──────────────────────────────────────────────────
-
-export function getBlocks(): Block[] { return load('blocks') ?? [] }
-export function saveBlocks(bl: Block[]) { store('blocks', bl) }
-
-export function blockUser(blockerId: string, blockedId: string) {
-  const bl = getBlocks()
-  if (!bl.some(b => b.blockerId === blockerId && b.blockedId === blockedId)) {
-    bl.push({ blockerId, blockedId, createdAt: new Date().toISOString() })
-    saveBlocks(bl)
+// ── Likes (Posts) ──
+export async function togglePostLike(postId: string): Promise<boolean> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  const post = cache.postsById.get(postId)
+  if (!post) throw new Error('게시글을 찾을 수 없습니다.')
+  const liked = post.likes.includes(me.id)
+  if (liked) {
+    const { error } = await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', me.id)
+    if (error) throw error
+    post.likes = post.likes.filter(u => u !== me.id)
+    return false
+  } else {
+    const { error } = await supabase.from('post_likes').insert({ post_id: postId, user_id: me.id })
+    if (error) throw error
+    post.likes = [...post.likes, me.id]
+    return true
   }
 }
 
-export function unblockUser(blockerId: string, blockedId: string) {
-  saveBlocks(getBlocks().filter(b => !(b.blockerId === blockerId && b.blockedId === blockedId)))
+// ── Prayers (Posts) ──
+export async function togglePostPrayer(postId: string): Promise<boolean> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  const post = cache.postsById.get(postId)
+  if (!post) throw new Error('게시글을 찾을 수 없습니다.')
+  const prayers = post.prayers ?? []
+  const prayed = prayers.includes(me.id)
+  if (prayed) {
+    const { error } = await supabase.from('post_prayers').delete().eq('post_id', postId).eq('user_id', me.id)
+    if (error) throw error
+    post.prayers = prayers.filter(u => u !== me.id)
+    return false
+  } else {
+    const { error } = await supabase.from('post_prayers').insert({ post_id: postId, user_id: me.id })
+    if (error) throw error
+    post.prayers = [...prayers, me.id]
+    return true
+  }
+}
+
+// ── Poll Vote ──
+export async function togglePollVote(postId: string, optionIndex: number): Promise<void> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  const post = cache.postsById.get(postId)
+  if (!post?.poll) throw new Error('투표 정보가 없습니다.')
+
+  // option DB id 조회 필요
+  const { data: opts, error: oErr } = await supabase.from('poll_options')
+    .select('id, position').eq('post_id', postId).order('position')
+  if (oErr) throw oErr
+  const target = opts?.[optionIndex]
+  if (!target) throw new Error('선택지를 찾을 수 없습니다.')
+
+  // 기존 투표 모두 제거 (1인 1표)
+  const optIds = (opts ?? []).map(o => o.id)
+  if (optIds.length) {
+    await supabase.from('poll_votes').delete().eq('user_id', me.id).in('option_id', optIds)
+  }
+  const { error: vErr } = await supabase.from('poll_votes').insert({ option_id: target.id, user_id: me.id })
+  if (vErr) throw vErr
+
+  // cache 갱신
+  post.poll.options = post.poll.options.map((o, i) => ({
+    ...o,
+    votes: i === optionIndex ? Array.from(new Set([...o.votes.filter(u => u !== me.id), me.id])) : o.votes.filter(u => u !== me.id),
+  }))
+}
+
+// ── Views ──
+export async function incrementViews(postId: string): Promise<void> {
+  await supabase.rpc('increment_post_views', { p_post_id: postId })
+  const post = cache.postsById.get(postId)
+  if (post) post.views = (post.views ?? 0) + 1
+}
+
+// ════════════════════════════════════════════════════════════
+// Comments
+// ════════════════════════════════════════════════════════════
+
+export function getComments(): Comment[] { return cache.comments }
+
+export async function createComment(data: Partial<Comment>): Promise<Comment> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  const { data: row, error } = await supabase.from('comments').insert({
+    post_id: data.postId!,
+    author_id: me.id,
+    parent_id: data.parentId ?? null,
+    content: data.content!,
+  }).select().single()
+  if (error) throw error
+  const comment = rowToComment(row as CommentRow, [])
+  cache.comments.push(comment)
+  return comment
+}
+
+export async function updateComment(id: string, updates: Partial<Comment>): Promise<Comment | null> {
+  const dbUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (updates.content !== undefined) dbUpdates.content = updates.content
+  const { data, error } = await supabase.from('comments').update(dbUpdates).eq('id', id).select().single()
+  if (error) throw error
+  const existing = cache.comments.find(c => c.id === id)
+  const updated = rowToComment(data as CommentRow, existing?.likes ?? [])
+  const idx = cache.comments.findIndex(c => c.id === id)
+  if (idx >= 0) cache.comments[idx] = updated
+  return updated
+}
+
+export async function deleteComment(id: string): Promise<void> {
+  const { error } = await supabase.from('comments').delete().eq('id', id)
+  if (error) throw error
+  cache.comments = cache.comments.filter(c => c.id !== id && c.parentId !== id)
+}
+
+export async function toggleCommentLike(commentId: string): Promise<boolean> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  const comment = cache.comments.find(c => c.id === commentId)
+  if (!comment) throw new Error('댓글을 찾을 수 없습니다.')
+  const liked = comment.likes.includes(me.id)
+  if (liked) {
+    const { error } = await supabase.from('comment_likes').delete().eq('comment_id', commentId).eq('user_id', me.id)
+    if (error) throw error
+    comment.likes = comment.likes.filter(u => u !== me.id)
+    return false
+  } else {
+    const { error } = await supabase.from('comment_likes').insert({ comment_id: commentId, user_id: me.id })
+    if (error) throw error
+    comment.likes = [...comment.likes, me.id]
+    return true
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// Bookmarks
+// ════════════════════════════════════════════════════════════
+
+export function getBookmarks(): Bookmark[] { return cache.bookmarks }
+
+export async function toggleBookmark(userId: string, postId: string): Promise<boolean> {
+  const me = _sessionUser
+  if (!me || me.id !== userId) throw new Error('권한이 없습니다.')
+  const idx = cache.bookmarks.findIndex(b => b.userId === userId && b.postId === postId)
+  if (idx >= 0) {
+    const { error } = await supabase.from('bookmarks').delete().eq('user_id', userId).eq('post_id', postId)
+    if (error) throw error
+    cache.bookmarks.splice(idx, 1)
+    return false
+  } else {
+    const row = { user_id: userId, post_id: postId }
+    const { error } = await supabase.from('bookmarks').insert(row)
+    if (error) throw error
+    cache.bookmarks.push({ userId, postId, createdAt: new Date().toISOString() })
+    return true
+  }
+}
+
+export function isBookmarked(userId: string, postId: string): boolean {
+  return cache.bookmarks.some(b => b.userId === userId && b.postId === postId)
+}
+
+export function getUserBookmarks(userId: string): Bookmark[] {
+  return cache.bookmarks.filter(b => b.userId === userId)
+}
+
+// ════════════════════════════════════════════════════════════
+// Blocks
+// ════════════════════════════════════════════════════════════
+
+export function getBlocks(): Block[] { return cache.blocks }
+
+export async function blockUser(blockerId: string, blockedId: string): Promise<void> {
+  if (cache.blocks.some(b => b.blockerId === blockerId && b.blockedId === blockedId)) return
+  const { error } = await supabase.from('blocks').insert({ blocker_id: blockerId, blocked_id: blockedId })
+  if (error) throw error
+  cache.blocks.push({ blockerId, blockedId, createdAt: new Date().toISOString() })
+}
+
+export async function unblockUser(blockerId: string, blockedId: string): Promise<void> {
+  const { error } = await supabase.from('blocks').delete().eq('blocker_id', blockerId).eq('blocked_id', blockedId)
+  if (error) throw error
+  cache.blocks = cache.blocks.filter(b => !(b.blockerId === blockerId && b.blockedId === blockedId))
 }
 
 export function isBlocked(blockerId: string, blockedId: string): boolean {
-  return getBlocks().some(b => b.blockerId === blockerId && b.blockedId === blockedId)
+  return cache.blocks.some(b => b.blockerId === blockerId && b.blockedId === blockedId)
 }
-
 export function getBlockedIds(userId: string): string[] {
-  return getBlocks().filter(b => b.blockerId === userId).map(b => b.blockedId)
+  return cache.blocks.filter(b => b.blockerId === userId).map(b => b.blockedId)
 }
 
-// ── Notifications ───────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// Notifications
+// ════════════════════════════════════════════════════════════
 
-export function getNotifications(): Notification[] { return load('notifications') ?? [] }
-export function saveNotifications(n: Notification[]) { store('notifications', n) }
+export function getNotifications(): Notification[] { return cache.notifications }
 
-export function createNotification(data: Partial<Notification>) {
-  const ns = getNotifications()
-  ns.unshift({ id: uuid(), createdAt: new Date().toISOString(), ...data } as Notification)
-  saveNotifications(ns)
+export async function createNotification(data: Partial<Notification>): Promise<Notification> {
+  const { data: row, error } = await supabase.from('notifications').insert({
+    user_id: data.userId!,
+    type: data.type!,
+    post_id: data.postId || null,
+    message: data.message ?? '',
+  }).select().single()
+  if (error) throw error
+  const n = rowToNotification(row as NotificationRow)
+  cache.notifications.unshift(n)
+  return n
 }
 
 export function getUserNotifications(userId: string): Notification[] {
-  return getNotifications()
+  return cache.notifications
     .filter(n => n.userId === userId)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 }
-
 export function getUnreadCount(userId: string): number {
-  return getNotifications().filter(n => n.userId === userId && !n.read).length
+  return cache.notifications.filter(n => n.userId === userId && !n.read).length
 }
 
-export function markRead(notifId: string) {
-  const ns = getNotifications()
-  const n = ns.find(x => x.id === notifId)
-  if (n) { n.read = true; saveNotifications(ns) }
+export async function markRead(notifId: string): Promise<void> {
+  const { error } = await supabase.from('notifications').update({ read: true }).eq('id', notifId)
+  if (error) throw error
+  const n = cache.notifications.find(x => x.id === notifId)
+  if (n) n.read = true
 }
-
-export function markAllRead(userId: string) {
-  const ns = getNotifications()
-  ns.filter(n => n.userId === userId).forEach(n => { n.read = true })
-  saveNotifications(ns)
+export async function markAllRead(userId: string): Promise<void> {
+  const { error } = await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
+  if (error) throw error
+  cache.notifications.forEach(n => { if (n.userId === userId) n.read = true })
 }
+// ════════════════════════════════════════════════════════════
+// Messages (DM)
+// ════════════════════════════════════════════════════════════
 
-// ── Messages ────────────────────────────────────────────────
+export function getMessages(): Message[] { return cache.messages }
 
-export function getMessages(): Message[] { return load('messages') ?? [] }
-export function saveMessages(m: Message[]) { store('messages', m) }
-
-export function createMessage(data: Partial<Message>) {
-  const msgs = getMessages()
-  msgs.push({ id: uuid(), createdAt: new Date().toISOString(), ...data } as Message)
-  saveMessages(msgs)
+export async function createMessage(data: Partial<Message>): Promise<Message> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  const { data: row, error } = await supabase.from('messages').insert({
+    sender_id: me.id,
+    receiver_id: data.receiverId!,
+    content: data.content!,
+  }).select().single()
+  if (error) throw error
+  const msg = rowToMessage(row as MessageRow)
+  cache.messages.push(msg)
+  return msg
 }
 
 export function getThread(userId: string, otherUserId: string): Message[] {
-  return getMessages().filter(m =>
+  return cache.messages.filter(m =>
     (m.senderId === userId && m.receiverId === otherUserId) ||
     (m.senderId === otherUserId && m.receiverId === userId)
   ).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
 }
 
 export function getConversations(userId: string): Conversation[] {
-  const msgs = getMessages().filter(m => m.senderId === userId || m.receiverId === userId)
+  const msgs = cache.messages.filter(m => m.senderId === userId || m.receiverId === userId)
   const map: Record<string, Message> = {}
   msgs.forEach(m => {
     const other = m.senderId === userId ? m.receiverId : m.senderId
@@ -227,129 +742,75 @@ export function getConversations(userId: string): Conversation[] {
     .sort((a, b) => new Date(b.lastMsg.createdAt).getTime() - new Date(a.lastMsg.createdAt).getTime())
 }
 
-export function markThreadRead(userId: string, otherUserId: string) {
-  const msgs = getMessages()
-  let changed = false
-  msgs.forEach(m => {
-    if (m.senderId === otherUserId && m.receiverId === userId && !m.read) {
-      m.read = true; changed = true
-    }
+export async function markThreadRead(userId: string, otherUserId: string): Promise<void> {
+  const { error } = await supabase.from('messages').update({ read: true })
+    .eq('sender_id', otherUserId).eq('receiver_id', userId).eq('read', false)
+  if (error) throw error
+  cache.messages.forEach(m => {
+    if (m.senderId === otherUserId && m.receiverId === userId) m.read = true
   })
-  if (changed) saveMessages(msgs)
 }
 
-// ── Reports ─────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// Reports
+// ════════════════════════════════════════════════════════════
 
-export function getReports(): Report[] { return load('reports') ?? [] }
-export function saveReports(reports: Report[]) { store('reports', reports) }
+export function getReports(): Report[] { return cache.reports }
 
-export function createReport(data: Partial<Report>): Report {
-  const reports = getReports()
-  const report: Report = { id: uuid(), status: 'pending', createdAt: new Date().toISOString(), ...data } as Report
-  reports.push(report)
-  saveReports(reports)
+export async function createReport(data: Partial<Report>): Promise<Report> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  const { data: row, error } = await supabase.from('reports').insert({
+    reporter_id: me.id,
+    target_type: data.targetType!,
+    target_id: data.targetId!,
+    reason: data.reason!,
+    detail: data.detail ?? '',
+  }).select().single()
+  if (error) throw error
+  const report = rowToReport(row as ReportRow)
+  cache.reports.push(report)
   return report
 }
 
-export function updateReport(id: string, updates: Partial<Report>) {
-  const reports = getReports()
-  const idx = reports.findIndex(r => r.id === id)
-  if (idx >= 0) { Object.assign(reports[idx], updates); saveReports(reports) }
+export async function updateReport(id: string, updates: Partial<Report>): Promise<void> {
+  const dbUpdates: Record<string, unknown> = {}
+  if (updates.status !== undefined) dbUpdates.status = updates.status
+  const { error } = await supabase.from('reports').update(dbUpdates).eq('id', id)
+  if (error) throw error
+  const r = cache.reports.find(x => x.id === id)
+  if (r) Object.assign(r, updates)
 }
 
 export function hasReported(userId: string, targetType: string, targetId: string): boolean {
-  return getReports().some(
+  return cache.reports.some(
     r => r.reporterId === userId && r.targetType === targetType && r.targetId === targetId
   )
 }
 
-// ── Announcements ───────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// Announcements
+// ════════════════════════════════════════════════════════════
 
-export function getAnnouncements(): Announcement[] { return load('announcements') ?? [] }
-export function saveAnnouncements(a: Announcement[]) { store('announcements', a) }
+export function getAnnouncements(): Announcement[] { return cache.announcements }
 
-export function createAnnouncementItem(data: Partial<Announcement>) {
-  const anns = getAnnouncements()
-  anns.unshift({ id: uuid(), createdAt: new Date().toISOString(), ...data } as Announcement)
-  saveAnnouncements(anns)
+export async function createAnnouncementItem(data: Partial<Announcement>): Promise<Announcement> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  const { data: row, error } = await supabase.from('announcements').insert({
+    author_id: me.id,
+    title: data.title!,
+    content: data.content!,
+  }).select().single()
+  if (error) throw error
+  const ann = rowToAnnouncement(row as AnnouncementRow)
+  cache.announcements.unshift(ann)
+  return ann
 }
 
-export function deleteAnnouncementItem(id: string) {
-  saveAnnouncements(getAnnouncements().filter(a => a.id !== id))
+export async function deleteAnnouncementItem(id: string): Promise<void> {
+  const { error } = await supabase.from('announcements').delete().eq('id', id)
+  if (error) throw error
+  cache.announcements = cache.announcements.filter(a => a.id !== id)
 }
 
-// ── Session ─────────────────────────────────────────────────
-
-export function setSession(user: User | null) {
-  if (user) sessionStorage.setItem('honglind_session', JSON.stringify(user))
-  else sessionStorage.removeItem('honglind_session')
-}
-
-export function getSession(): User | null {
-  try { return JSON.parse(sessionStorage.getItem('honglind_session') || 'null') }
-  catch { return null }
-}
-
-export function currentUser(): User | null {
-  return getSession()
-}
-
-export function refreshSession() {
-  const s = getSession()
-  if (!s) return
-  const fresh = getUserById(s.id)
-  if (fresh) setSession(fresh)
-}
-
-// ── Seed ────────────────────────────────────────────────────
-
-export async function seed() {
-  if (load('seeded_v6')) return
-
-  ;['seeded_v3', 'seeded_v4', 'seeded_v5', 'initialized', 'initialized_v2'].forEach(k => {
-    localStorage.removeItem('honglind_' + k)
-  })
-
-  try {
-    const [users, posts, comments, reports] = await Promise.all([
-      fetch('/data/users.json').then(r => r.json()),
-      fetch('/data/posts.json').then(r => r.json()),
-      fetch('/data/comments.json').then(r => r.json()),
-      fetch('/data/reports.json').then(r => r.json()),
-    ])
-    saveUsers(users)
-    savePosts(posts)
-    saveComments(comments)
-    saveReports(reports)
-  } catch (e) {
-    console.warn('JSON fetch failed, using inline seed:', e)
-    inlineSeed()
-  }
-
-  store('seeded_v6', true)
-}
-
-function inlineSeed() {
-  const now = new Date(), h = 3600000
-  const users: User[] = [
-    { id: 'u1', nickname: '은혜의종', email: 'grace@seminary.ac.kr', password: 'Test1234!', affiliation: 'A신학대학원', role: 'admin', banned: false, createdAt: '2026-02-10T09:00:00.000Z' },
-    { id: 'u2', nickname: '말씀묵상', email: 'word@church.org', password: 'Test1234!', affiliation: 'B장로교회', role: 'user', banned: false, createdAt: '2026-02-15T10:00:00.000Z' },
-    { id: 'u3', nickname: '예배인도자', email: 'worship@seminary.ac.kr', password: 'Test1234!', affiliation: 'C신학대학원', role: 'user', banned: false, createdAt: '2026-03-01T11:00:00.000Z' },
-    { id: 'u4', nickname: '새벽기도', email: 'dawn@church.org', password: 'Test1234!', affiliation: 'D교회', role: 'user', banned: false, createdAt: '2026-03-10T05:00:00.000Z' },
-    { id: 'u5', nickname: '청년목사', email: 'youth@church.org', password: 'Test1234!', affiliation: 'E감리교회', role: 'user', banned: false, createdAt: '2026-03-15T10:00:00.000Z' },
-  ]
-  const posts: Post[] = [
-    { id: 'p1', authorId: 'u1', category: '사역고민', title: '부교역자 3년차, 담임목사님과의 관계가 너무 어렵습니다', content: '부교역자로 섬긴 지 3년이 되었는데, 담임목사님의 사역 방향과 제 생각이 자꾸 달라서 힘듭니다.', likes: ['u2', 'u3', 'u4'], views: 287, createdAt: new Date(now.getTime() - h * 3).toISOString(), updatedAt: null, cheongbing: null, prayers: null, sermonVerse: null, poll: null },
-    { id: 'p2', authorId: 'u3', category: '유머', title: '주일학교 아이가 한 말에 빵 터졌습니다 ㅋㅋ', content: '"모세가 홍해를 건넜어요" 했더니 아이가 "수영 잘 했어요?" 물어봄 ㅋㅋ', likes: ['u1', 'u2', 'u4', 'u5'], views: 523, createdAt: new Date(now.getTime() - h * 1).toISOString(), updatedAt: null, cheongbing: null, prayers: null, sermonVerse: null, poll: null },
-    { id: 'p3', authorId: 'u4', category: '청빙', title: '[청빙] 서울 강남구 소재 교회 청년부 담당 전도사 청빙', content: '중형교회에서 청년부 담당 전도사님을 청빙합니다.', likes: ['u1', 'u2'], views: 412, createdAt: new Date(now.getTime() - h * 12).toISOString(), updatedAt: null, cheongbing: { position: '청년부 전도사', denomination: '대한예수교장로회(합동)', region: '서울 강남구', salary: '월 250만원 + 사택', deadline: '2026-05-15', contact: 'recruit@gangnamchurch.org', churchSize: '출석 300명' }, prayers: null, sermonVerse: null, poll: null },
-    { id: 'p4', authorId: 'u2', category: '기도요청', title: '아버지 수술을 앞두고 있습니다', content: '아버지께서 다음 주 심장 수술을 받으시게 되었습니다. 함께 기도해주세요.', likes: ['u1', 'u3', 'u4', 'u5'], views: 234, createdAt: new Date(now.getTime() - h * 2).toISOString(), updatedAt: null, cheongbing: null, prayers: ['u1', 'u3', 'u4', 'u5'], sermonVerse: null, poll: null },
-  ]
-  const comments: Comment[] = [
-    { id: 'c1', postId: 'p1', authorId: 'u2', parentId: null, content: '공감합니다. 저도 비슷한 상황이었어요.', likes: ['u1'], createdAt: new Date(now.getTime() - h * 2.5).toISOString() },
-    { id: 'c2', postId: 'p2', authorId: 'u4', parentId: null, content: 'ㅋㅋㅋ 아이들 진짜 순수해요', likes: ['u3'], createdAt: new Date(now.getTime() - h * 0.5).toISOString() },
-  ]
-  saveUsers(users)
-  savePosts(posts)
-  saveComments(comments)
-  saveReports([])
-}

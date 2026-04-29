@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useToastStore } from '@/components/ui/Toast'
 import * as DS from '@/api/dataService'
+import { supabase } from '@/api/supabase'
 import { BackIcon } from '@/components/ui/Icons'
 import { isPasswordValid, getPasswordRules, isValidEmail } from '@/utils/helpers'
 
@@ -24,34 +25,58 @@ export function SettingsPage() {
   const fresh = DS.getUserById(user.id) || user
   const blockedIds = DS.getBlockedIds(user.id)
   const pwRules = getPasswordRules(newPw)
-  const saveNickname = () => {
+
+  const saveNickname = async () => {
     if (!nickname.trim()) { toast('닉네임을 입력하세요.'); return }
-    updateProfile({ nickname: nickname.trim() }); setEditingNickname(false); toast('닉네임이 변경되었습니다.')
+    try { await updateProfile({ nickname: nickname.trim() }); setEditingNickname(false); toast('닉네임이 변경되었습니다.') }
+    catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
+
   const checkEmail = () => {
     if (!newEmail) { setEmailMsg({text:'이메일을 입력하세요.',ok:false}); setEmailChecked(false); return }
     if (!isValidEmail(newEmail)) { setEmailMsg({text:'올바른 이메일 형식이 아닙니다.',ok:false}); setEmailChecked(false); return }
     if (DS.findUserByEmail(newEmail)) { setEmailMsg({text:'이미 사용 중인 이메일입니다.',ok:false}); setEmailChecked(false); return }
-    setEmailMsg({text:'\u2713 사용 가능한 이메일입니다.',ok:true}); setEmailChecked(true)
+    setEmailMsg({text:'✓ 사용 가능한 이메일입니다.',ok:true}); setEmailChecked(true)
   }
-  const saveEmail = () => {
+
+  const saveEmail = async () => {
     if (!emailChecked) { toast('이메일 중복확인을 해주세요.'); return }
-    updateProfile({ email: newEmail }); toast('이메일이 변경되었습니다.'); setNewEmail(''); setEmailChecked(false); setEmailMsg(null)
+    try {
+      // Supabase Auth 의 이메일 변경 — 확인 메일이 발송됨
+      const { error } = await supabase.auth.updateUser({ email: newEmail })
+      if (error) { toast(error.message); return }
+      toast('확인 메일을 보냈습니다. 새 이메일에서 확인해 주세요.')
+      setNewEmail(''); setEmailChecked(false); setEmailMsg(null)
+    } catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
-  const savePw = () => {
+
+  const savePw = async () => {
     if (!curPw) { toast('현재 비밀번호를 입력하세요.'); return }
-    if (curPw !== fresh.password) { toast('현재 비밀번호가 올바르지 않습니다.'); return }
     if (!isPasswordValid(newPw)) { toast('새 비밀번호가 조건을 충족하지 않습니다.'); return }
     if (newPw !== newPwC) { toast('새 비밀번호가 일치하지 않습니다.'); return }
-    updateProfile({ password: newPw }); toast('비밀번호가 변경되었습니다.'); setCurPw(''); setNewPw(''); setNewPwC('')
+    // 현재 비밀번호 재인증
+    const { error: reErr } = await supabase.auth.signInWithPassword({ email: fresh.email, password: curPw })
+    if (reErr) { toast('현재 비밀번호가 올바르지 않습니다.'); return }
+    try {
+      await updateProfile({ password: newPw })
+      toast('비밀번호가 변경되었습니다.'); setCurPw(''); setNewPw(''); setNewPwC('')
+    } catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
-  const handleDelete = () => {
+
+  const handleDelete = async () => {
     if (!deletePw) { toast('비밀번호를 입력하세요.'); return }
-    if (deletePw !== fresh.password) { toast('비밀번호가 올바르지 않습니다.'); return }
+    const { error: reErr } = await supabase.auth.signInWithPassword({ email: fresh.email, password: deletePw })
+    if (reErr) { toast('비밀번호가 올바르지 않습니다.'); return }
     if (!confirm('정말로 계정을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) return
-    deleteAccount(); toast('계정이 삭제되었습니다.'); navigate('/auth')
+    try { await deleteAccount(); toast('계정이 삭제되었습니다.'); navigate('/auth') }
+    catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
-  const unblock = (blockedId: string) => { DS.unblockUser(user.id, blockedId); toast('차단이 해제되었습니다.'); setTick(t=>t+1) }
+
+  const unblock = async (blockedId: string) => {
+    try { await DS.unblockUser(user.id, blockedId); toast('차단이 해제되었습니다.'); setTick(t=>t+1) }
+    catch (e) { toast(e instanceof Error ? e.message : '오류') }
+  }
+
   return (
     <>
       <div className="back-btn" onClick={()=>navigate('/')}><BackIcon/> 돌아가기</div>
@@ -85,9 +110,9 @@ export function SettingsPage() {
         <h3>비밀번호 변경</h3>
         <div className="form-group"><label>현재 비밀번호</label><input type="password" className="form-input" value={curPw} onChange={e=>setCurPw(e.target.value)} placeholder="현재 비밀번호" style={{maxWidth:340,fontSize:13,padding:'10px 14px'}}/></div>
         <div className="form-group"><label>새 비밀번호</label><input type="password" className="form-input" value={newPw} onChange={e=>setNewPw(e.target.value)} placeholder="새 비밀번호" style={{maxWidth:340,fontSize:13,padding:'10px 14px'}}/>
-          <ul className="validation-list">{pwRules.map(r=><li key={r.key} className={r.pass?'pass':'fail'}><span className="vicon">{r.pass?'\u2713':'\u2717'}</span> {r.label}</li>)}</ul></div>
+          <ul className="validation-list">{pwRules.map(r=><li key={r.key} className={r.pass?'pass':'fail'}><span className="vicon">{r.pass?'✓':'✗'}</span> {r.label}</li>)}</ul></div>
         <div className="form-group"><label>새 비밀번호 확인</label><input type="password" className="form-input" value={newPwC} onChange={e=>setNewPwC(e.target.value)} placeholder="새 비밀번호 확인" style={{maxWidth:340,fontSize:13,padding:'10px 14px'}}/>
-          {newPwC&&newPw===newPwC&&<div className="email-check-msg ok">{'\u2713'} 비밀번호가 일치합니다.</div>}
+          {newPwC&&newPw===newPwC&&<div className="email-check-msg ok">{'✓'} 비밀번호가 일치합니다.</div>}
           {newPwC&&newPw!==newPwC&&<div className="email-check-msg err">비밀번호가 일치하지 않습니다.</div>}</div>
         <button className="btn btn-primary btn-small" onClick={savePw}>변경하기</button>
       </div>

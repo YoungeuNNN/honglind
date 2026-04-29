@@ -30,7 +30,7 @@ export function WritePage() {
 
   useEffect(() => { if (isEdit && !existingPost) navigate('/') }, [isEdit, existingPost, navigate])
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!user) return
     if (!title.trim()) { toast('제목을 입력하세요.'); return }
     if (!content.trim()) { toast('내용을 입력하세요.'); return }
@@ -47,10 +47,14 @@ export function WritePage() {
       sermonVerse: category === '설교나눔' ? (sermonVerse.trim() || null) : null,
       poll,
     }
-    if (isEdit) {
-      DS.updatePost(id!, data); toast('게시글이 수정되었습니다.'); navigate(`/post/${id}`)
-    } else {
-      const post = DS.createPost(data); toast('게시글이 등록되었습니다!'); navigate(`/post/${post.id}`)
+    try {
+      if (isEdit) {
+        await DS.updatePost(id!, data); toast('게시글이 수정되었습니다.'); navigate(`/post/${id}`)
+      } else {
+        const post = await DS.createPost(data); toast('게시글이 등록되었습니다!'); navigate(`/post/${post.id}`)
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : '저장에 실패했습니다.')
     }
   }
 

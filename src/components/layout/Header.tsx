@@ -26,10 +26,10 @@ export function Header() {
     }
   }
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
     closeUserMenu()
-    navigate('/auth')
+    navigate('/auth', { replace: true })
+    try { await logout() } catch (e) { console.error('logout failed:', e) }
   }
 
   if (!user) return null

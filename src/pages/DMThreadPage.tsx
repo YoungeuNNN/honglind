@@ -16,12 +16,14 @@ export function DMThreadPage() {
   const other = DS.getUserById(otherUserId)
   const otherName = other ? other.nickname : '탈퇴한 사용자'
   const msgs = DS.getThread(user.id, otherUserId)
-  useEffect(() => { DS.markThreadRead(user.id, otherUserId!) }, [user.id, otherUserId])
+  useEffect(() => { DS.markThreadRead(user.id, otherUserId!).catch(console.error) }, [user.id, otherUserId])
   useEffect(() => { if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight }, [msgs.length])
-  const send = () => {
+  const send = async () => {
     if (!msgText.trim()) return
-    DS.createMessage({ senderId: user.id, receiverId: otherUserId, content: msgText.trim(), read: false })
-    setMsgText(''); setTick(t => t + 1)
+    try {
+      await DS.createMessage({ senderId: user.id, receiverId: otherUserId, content: msgText.trim(), read: false })
+      setMsgText(''); setTick(t => t + 1)
+    } catch (e) { console.error(e) }
   }
   return (
     <>
