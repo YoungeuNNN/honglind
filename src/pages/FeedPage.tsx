@@ -5,7 +5,22 @@ import * as DS from '@/api/dataService'
 import { CATEGORY_LABELS } from '@/utils/constants'
 import { timeAgo, getDailyVerse } from '@/utils/helpers'
 import { HeartIcon, CommentIcon, EyeIcon } from '@/components/ui/Icons'
+import { CategoryPreview } from '@/components/home/CategoryPreview'
 import type { Post } from '@/types'
+
+const CATEGORIES = [
+  { category: '인기', label: '인기글', emoji: '🔥' },
+  { category: '자유', label: '자유게시판', emoji: '💬' },
+  { category: '사역고민', label: '사역 고민', emoji: '🙏' },
+  { category: '교회생활', label: '교회생활', emoji: '⛪' },
+  { category: '신학교', label: '신학교생활', emoji: '🎓' },
+  { category: '신학토론', label: '신학 토론', emoji: '📖' },
+  { category: '설교나눔', label: '설교 나눔', emoji: '⛳' },
+  { category: '기도요청', label: '기도요청', emoji: '🕊️' },
+  { category: '연봉', label: '사례비/처우', emoji: '💰' },
+  { category: '유머', label: '유머/위로', emoji: '😊' },
+  { category: '청빙', label: '청빙 공고', emoji: '📢' },
+]
 
 export function FeedPage() {
   const navigate = useNavigate()
@@ -19,9 +34,51 @@ export function FeedPage() {
   const search = searchParams.get('search') || ''
 
   const blockedIds = user ? DS.getBlockedIds(user.id) : []
-  let posts = DS.getPosts()
+  const allPosts = DS.getPosts()
   const allComments = DS.getComments()
+  
+  // 댓글 수 미리 계산
+  const commentCounts: { [postId: string]: number } = {}
+  allComments.forEach(comment => {
+    commentCounts[comment.postId] = (commentCounts[comment.postId] || 0) + 1
+  })
 
+  // 전체 홈페이지 뷰 (카테고리별 미리보기)
+  if (category === 'all' && !search) {
+    return (
+      <>
+        <DailyVerseSection />
+        <AnnouncementSection />
+        <TrendingSection />
+        
+        <div className="home-content">
+          {CATEGORIES.map(cat => {
+            let categoryPosts = allPosts.filter(p => {
+              if (blockedIds.length && blockedIds.includes(p.authorId)) return false
+              if (cat.category === '인기') return p.likes.length >= 3
+              return p.category === cat.category
+            })
+            
+            categoryPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            
+            return (
+              <CategoryPreview
+                key={cat.category}
+                category={cat.category}
+                categoryLabel={cat.label}
+                emoji={cat.emoji}
+                posts={categoryPosts}
+                commentCounts={commentCounts}
+              />
+            )
+          })}
+        </div>
+      </>
+    )
+  }
+
+  // 기존 카테고리별 상세 뷰
+  let posts = allPosts
   if (blockedIds.length) posts = posts.filter(p => !blockedIds.includes(p.authorId))
   if (search) {
     const q = search.toLowerCase()
@@ -44,15 +101,6 @@ export function FeedPage() {
 
   return (
     <>
-      {/* Daily Verse */}
-      {category === 'all' && !search && <DailyVerseSection />}
-
-      {/* Announcements */}
-      {category === 'all' && !search && <AnnouncementSection />}
-
-      {/* Trending */}
-      {category === 'all' && !search && <TrendingSection />}
-
       {/* Header */}
       <div className="feed-header">
         <h2 className="feed-title">{search ? `"${search}" 검색 결과` : catTitle}</h2>
@@ -66,7 +114,7 @@ export function FeedPage() {
       {!visiblePosts.length ? (
         <div className="empty-state fade-in"><p>{search ? '검색 결과가 없습니다.' : '아직 게시글이 없습니다.'}</p></div>
       ) : (
-        visiblePosts.map(p => <PostCard key={p.id} post={p} commentCount={allComments.filter(c => c.postId === p.id).length} userId={user?.id} onClick={() => navigate(`/post/${p.id}`)} />)
+        visiblePosts.map(p => <PostCard key={p.id} post={p} commentCount={commentCounts[p.id] || 0} userId={user?.id} onClick={() => navigate(`/post/${p.id}`)} />)
       )}
 
       {hasMore && (

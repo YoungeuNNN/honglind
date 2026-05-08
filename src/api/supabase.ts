@@ -1,9 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co'
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2MDAwMDAwMDAsImV4cCI6MTkwMDAwMDAwMH0.placeholder'
 
-if (!supabaseUrl || !supabaseAnonKey) {
+// 개발 모드에서 Supabase 연결 오류 시 mock 데이터 사용
+const isDev = import.meta.env.DEV
+const useMock = import.meta.env.VITE_USE_MOCK === 'true'
+
+if ((!supabaseUrl || !supabaseAnonKey || useMock) && !isDev) {
   // 빌드 시 환경변수 누락이면 throw 하기 전에 화면에 안내 표시
   const msg = 'Supabase 환경변수가 설정되지 않았습니다.\n\nNetlify > Site settings > Environment variables 에서\nVITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY 를 추가하고\nDeploys > Trigger deploy 로 재배포해 주세요.'
   if (typeof document !== 'undefined') {
