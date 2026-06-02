@@ -12,7 +12,7 @@ import { supabase } from './supabase'
 import type {
   User, Post, Comment, Notification, Message,
   Report, Block, Bookmark, Announcement, Conversation,
-  Poll, PollOption,
+  Poll, PollOption, AllowedDomain, SignUpResult,
 } from '@/types'
 
 // ════════════════════════════════════════════════════════════
@@ -31,6 +31,7 @@ interface Cache {
   messages: Message[]
   reports: Report[]
   announcements: Announcement[]
+  allowedDomains: AllowedDomain[]
 }
 
 const cache: Cache = {
@@ -43,6 +44,7 @@ const cache: Cache = {
   messages: [],
   reports: [],
   announcements: [],
+  allowedDomains: [],
 }
 
 let loaded = false
@@ -159,6 +161,18 @@ function rowToAnnouncement(r: AnnouncementRow): Announcement {
   }
 }
 
+interface AllowedDomainRow {
+  id: string; domain: string; description: string | null; created_at: string
+}
+function rowToAllowedDomain(r: AllowedDomainRow): AllowedDomain {
+  return {
+    id: r.id,
+    domain: r.domain,
+    description: r.description,
+    createdAt: r.created_at,
+  }
+}
+
 interface BookmarkRow { user_id: string; post_id: string; created_at: string }
 interface BlockRow { blocker_id: string; blocked_id: string; created_at: string }
 
@@ -176,6 +190,7 @@ export async function loadAll(): Promise<void> {
     bookmarksRes, blocksRes,
     notificationsRes, messagesRes,
     reportsRes, announcementsRes,
+    allowedDomainsRes,
   ] = await Promise.all([
     supabase.from('profiles').select('*'),
     supabase.from('posts').select('*'),
@@ -191,6 +206,7 @@ export async function loadAll(): Promise<void> {
     supabase.from('messages').select('*'),
     supabase.from('reports').select('*'),
     supabase.from('announcements').select('*').order('created_at', { ascending: false }),
+    supabase.from('allowed_email_domains').select('*').order('domain'),
   ])
 
   // 에러 체크
@@ -198,6 +214,7 @@ export async function loadAll(): Promise<void> {
     profilesRes, postsRes, postLikesRes, postPrayersRes, pollOptionsRes, pollVotesRes,
     commentsRes, commentLikesRes, bookmarksRes, blocksRes,
     notificationsRes, messagesRes, reportsRes, announcementsRes,
+    allowedDomainsRes,
   ].map(r => r.error).filter(Boolean)
   if (errors.length) {
     console.error('loadAll errors:', errors)
@@ -263,6 +280,7 @@ export async function loadAll(): Promise<void> {
   cache.messages = (messagesRes.data ?? []).map(m => rowToMessage(m as MessageRow))
   cache.reports = (reportsRes.data ?? []).map(r => rowToReport(r as ReportRow))
   cache.announcements = (announcementsRes.data ?? []).map(a => rowToAnnouncement(a as AnnouncementRow))
+  cache.allowedDomains = (allowedDomainsRes.data ?? []).map(d => rowToAllowedDomain(d as AllowedDomainRow))
 
   loaded = true
 }
@@ -322,15 +340,33 @@ export function findUserByEmail(email: string): User | undefined {
 }
 
 // signUp/signIn 용 — authStore 에서 사용
-export async function signUp(email: string, password: string, nickname: string): Promise<User> {
+export async function signUp(email: string, password: string, nickname: string): Promise<SignUpResult> {
+  // 클라이언트 1차 가드 — 서버 트리거가 최종 결정권자
+  if (!isDomainAllowed(email)) {
+    throw new Error('허용되지 않은 이메일 도메인입니다.')
+  }
   const { data, error } = await supabase.auth.signUp({
     email, password,
-    options: { data: { nickname } },
+    options: {
+      data: { nickname },
+      emailRedirectTo: window.location.origin + '/auth',
+    },
   })
-  if (error) throw error
+  if (error) {
+    // 트리거 raise 메시지를 친화적으로 변환
+    if (error.message?.includes('EMAIL_DOMAIN_NOT_ALLOWED')) {
+      throw new Error('허용되지 않은 이메일 도메인입니다.')
+    }
+    throw error
+  }
   if (!data.user) throw new Error('회원가입 실패')
-  // trigger 가 profiles 자동 생성. fetch.
-  // 이메일 인증이 켜져있으면 session 이 즉시 활성화되지 않을 수 있음.
+
+  // 이메일 인증이 켜져있으면 session 이 null. 사용자는 메일 링크 확인 필요.
+  if (!data.session) {
+    return { user: null, requiresEmailConfirmation: true }
+  }
+
+  // 인증이 꺼진 환경(예: 로컬 개발) — 즉시 프로필 fetch
   let user: User | null = null
   for (let i = 0; i < 5; i++) {
     const { data: row } = await supabase.from('profiles').select('*').eq('id', data.user.id).maybeSingle()
@@ -341,12 +377,18 @@ export async function signUp(email: string, password: string, nickname: string):
   cache.users.push(user)
   cache.usersById.set(user.id, user)
   _sessionUser = user
-  return user
+  return { user, requiresEmailConfirmation: false }
 }
 
 export async function signIn(email: string, password: string): Promise<User> {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-  if (error) throw new Error('이메일 또는 비밀번호가 올바르지 않습니다.')
+  if (error) {
+    // Supabase 가 이메일 미인증 시 'Email not confirmed' 반환
+    if (error.message?.toLowerCase().includes('email not confirmed')) {
+      throw new Error('이메일 인증이 완료되지 않았습니다. 메일함을 확인하세요.')
+    }
+    throw new Error('이메일 또는 비밀번호가 올바르지 않습니다.')
+  }
   if (!data.user) throw new Error('로그인 실패')
   const user = await syncSessionFromAuth()
   if (!user) throw new Error('프로필을 찾을 수 없습니다.')
@@ -356,6 +398,15 @@ export async function signIn(email: string, password: string): Promise<User> {
     throw new Error('정지된 계정입니다. 관리자에게 문의하세요.')
   }
   return user
+}
+
+export async function resendConfirmationEmail(email: string): Promise<void> {
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email,
+    options: { emailRedirectTo: window.location.origin + '/auth' },
+  })
+  if (error) throw error
 }
 
 export async function signOut(): Promise<void> {
@@ -829,5 +880,60 @@ export async function deleteAnnouncementItem(id: string): Promise<void> {
   const { error } = await supabase.from('announcements').delete().eq('id', id)
   if (error) throw error
   cache.announcements = cache.announcements.filter(a => a.id !== id)
+}
+
+// ════════════════════════════════════════════════════════════
+// Allowed Email Domains
+// ════════════════════════════════════════════════════════════
+
+export function getAllowedDomains(): AllowedDomain[] { return cache.allowedDomains }
+
+/** 가입 폼 1차 검증 — 캐시 기반. 서버 트리거가 최종 결정권자. */
+export function isDomainAllowed(email: string): boolean {
+  const at = email.lastIndexOf('@')
+  if (at < 0) return false
+  const domain = email.slice(at + 1).toLowerCase()
+  if (!domain) return false
+  return cache.allowedDomains.some(d => d.domain === domain)
+}
+
+export async function addAllowedDomain(domain: string, description?: string): Promise<AllowedDomain> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  const normalized = domain.trim().toLowerCase()
+  if (!normalized || normalized.includes('@') || normalized.includes(' ')) {
+    throw new Error('올바른 도메인 형식이 아닙니다.')
+  }
+  const { data, error } = await supabase.from('allowed_email_domains').insert({
+    domain: normalized,
+    description: description?.trim() || null,
+    created_by: me.id,
+  }).select().single()
+  if (error) {
+    if (error.code === '23505') throw new Error('이미 등록된 도메인입니다.')
+    throw error
+  }
+  const item = rowToAllowedDomain(data as AllowedDomainRow)
+  cache.allowedDomains.push(item)
+  cache.allowedDomains.sort((a, b) => a.domain.localeCompare(b.domain))
+  return item
+}
+
+export async function removeAllowedDomain(id: string): Promise<void> {
+  const { error } = await supabase.from('allowed_email_domains').delete().eq('id', id)
+  if (error) throw error
+  cache.allowedDomains = cache.allowedDomains.filter(d => d.id !== id)
+}
+
+/** 가입 폼에서 사용 — 캐시 비어있을 때 직접 fetch (anon 도 read 가능) */
+export async function fetchAllowedDomains(): Promise<AllowedDomain[]> {
+  const { data, error } = await supabase
+    .from('allowed_email_domains')
+    .select('*')
+    .order('domain')
+  if (error) throw error
+  const list = (data ?? []).map(d => rowToAllowedDomain(d as AllowedDomainRow))
+  cache.allowedDomains = list
+  return list
 }
 

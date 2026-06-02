@@ -7,16 +7,19 @@ import { timeAgo } from '@/utils/helpers'
 export function AdminPage() {
   const { user } = useAuthStore()
   const toast = useToastStore(s => s.show)
-  const [tab, setTab] = useState<'reports'|'users'|'announce'>('reports')
+  const [tab, setTab] = useState<'reports'|'users'|'announce'|'domains'>('reports')
   const [, setTick] = useState(0)
   const rerender = () => setTick(t => t + 1)
   const [annTitle, setAnnTitle] = useState('')
   const [annContent, setAnnContent] = useState('')
+  const [newDomain, setNewDomain] = useState('')
+  const [newDomainDesc, setNewDomainDesc] = useState('')
   if (!user || user.role !== 'admin') return null
   const users = DS.getUsers()
   const posts = DS.getPosts()
   const reports = DS.getReports()
   const announcements = DS.getAnnouncements()
+  const allowedDomains = DS.getAllowedDomains()
   const pendingReports = reports.filter(r => r.status === 'pending')
   const reasonLabels: Record<string,string> = {spam:'스팸',abuse:'욕설',false_info:'허위정보',privacy:'개인정보',inappropriate:'부적절',other:'기타'}
   return (
@@ -32,6 +35,7 @@ export function AdminPage() {
         <button className={`admin-tab ${tab==='reports'?'active':''}`} onClick={()=>setTab('reports')}>신고 관리</button>
         <button className={`admin-tab ${tab==='users'?'active':''}`} onClick={()=>setTab('users')}>사용자 관리</button>
         <button className={`admin-tab ${tab==='announce'?'active':''}`} onClick={()=>setTab('announce')}>공지사항</button>
+        <button className={`admin-tab ${tab==='domains'?'active':''}`} onClick={()=>setTab('domains')}>허용 도메인</button>
       </div>
       {tab==='reports' && (!reports.length ? <p style={{color:'var(--subtext)',padding:'20px 0'}}>신고 내역이 없습니다.</p> :
         [...reports].sort((a,b)=>a.status==='pending'?-1:1).map(r=>(
@@ -77,6 +81,58 @@ export function AdminPage() {
               <div className="admin-card-actions"><button className="btn btn-danger btn-small" onClick={async ()=>{if(!confirm('공지를 삭제하시겠습니까?'))return;await DS.deleteAnnouncementItem(a.id);toast('공지가 삭제되었습니다.');rerender()}}>삭제</button></div>
             </div>
           ))}
+        </>
+      )}
+      {tab==='domains' && (
+        <>
+          <div className="settings-section" style={{marginBottom:16}}>
+            <div style={{fontSize:13,color:'var(--subtext)',marginBottom:12,lineHeight:1.6}}>
+              가입 가능한 이메일 도메인 목록. 등록된 도메인을 가진 이메일만 회원가입할 수 있습니다.
+            </div>
+            <div className="form-group">
+              <label>도메인</label>
+              <input type="text" className="form-input" value={newDomain} onChange={e=>setNewDomain(e.target.value)} placeholder="예: puts.ac.kr"/>
+            </div>
+            <div className="form-group">
+              <label>설명 (선택)</label>
+              <input type="text" className="form-input" value={newDomainDesc} onChange={e=>setNewDomainDesc(e.target.value)} placeholder="예: 평택대학교 신학대학원"/>
+            </div>
+            <button className="btn btn-primary btn-small" onClick={async ()=>{
+              if(!newDomain.trim()){toast('도메인을 입력하세요.');return}
+              try {
+                await DS.addAllowedDomain(newDomain, newDomainDesc)
+                toast('도메인이 추가되었습니다.')
+                setNewDomain('')
+                setNewDomainDesc('')
+                rerender()
+              } catch (e) {
+                toast(e instanceof Error ? e.message : '추가 실패')
+              }
+            }}>도메인 추가</button>
+          </div>
+          {!allowedDomains.length ? <p style={{color:'var(--subtext)',padding:'20px 0'}}>등록된 도메인이 없습니다.</p> :
+            allowedDomains.map(d => (
+              <div key={d.id} className="admin-card fade-in">
+                <div className="admin-card-body">
+                  <div className="value" style={{fontWeight:700}}>{d.domain}</div>
+                  {d.description && <div className="label" style={{marginTop:4}}>{d.description}</div>}
+                  <div className="label">등록일: {new Date(d.createdAt).toLocaleDateString('ko-KR')}</div>
+                </div>
+                <div className="admin-card-actions">
+                  <button className="btn btn-danger btn-small" onClick={async ()=>{
+                    if(!confirm(`도메인 '${d.domain}' 을 삭제하시겠습니까?\n해당 도메인의 신규 가입이 차단됩니다.`))return
+                    try {
+                      await DS.removeAllowedDomain(d.id)
+                      toast('도메인이 삭제되었습니다.')
+                      rerender()
+                    } catch (e) {
+                      toast(e instanceof Error ? e.message : '삭제 실패')
+                    }
+                  }}>삭제</button>
+                </div>
+              </div>
+            ))
+          }
         </>
       )}
     </>

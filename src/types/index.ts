@@ -121,3 +121,17 @@ export interface Announcement {
   content: string
   createdAt: string
 }
+
+// ── AllowedDomain ───────────────────────────────────────────
+export interface AllowedDomain {
+  id: string
+  domain: string
+  description: string | null
+  createdAt: string
+}
+
+// 회원가입 결과 — 이메일 인증 활성화 시 session 이 없을 수 있음
+export interface SignUpResult {
+  user: User | null
+  requiresEmailConfirmation: boolean
+}

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { User } from '@/types'
+import type { User, SignUpResult } from '@/types'
 import * as DS from '@/api/dataService'
 import * as MockDS from '@/api/mockDataService'
 import { supabase } from '@/api/supabase'
@@ -17,7 +17,7 @@ interface AuthState {
 
   init: () => Promise<void>
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>
-  register: (data: { nickname: string; email: string; password: string }) => Promise<User>
+  register: (data: { nickname: string; email: string; password: string }) => Promise<SignUpResult>
   logout: () => Promise<void>
   refresh: () => Promise<void>
   updateProfile: (updates: Partial<User>) => Promise<void>
@@ -64,9 +64,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   register: async (data) => {
-    const user = await dataService.signUp(data.email, data.password, data.nickname)
-    set({ user })
-    return user
+    const result = await dataService.signUp(data.email, data.password, data.nickname)
+    if (result.user) set({ user: result.user })
+    return result
   },
 
   logout: async () => {

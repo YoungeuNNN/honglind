@@ -2,7 +2,7 @@
  * Mock Data Service - 개발용 임시 데이터
  * Supabase 연결 없이 테스트할 수 있도록 하는 목 데이터 서비스
  */
-import type { User, Post, Comment, Notification, Message, Report, Block, Bookmark, Announcement } from '@/types'
+import type { User, Post, Comment, Notification, Message, Report, Block, Bookmark, Announcement, AllowedDomain, SignUpResult } from '@/types'
 
 // Mock 데이터
 const mockUsers: User[] = [
@@ -86,7 +86,51 @@ export function findUserByEmail(email: string): User | undefined {
   return mockUsers.find(u => u.email === email)
 }
 
-export async function signUp(email: string, password: string, nickname: string): Promise<User> {
+const mockAllowedDomains: AllowedDomain[] = [
+  { id: 'dom1', domain: 'puts.ac.kr', description: '평택대학교 신학대학원', createdAt: '2024-01-01T00:00:00Z' },
+]
+
+export function getAllowedDomains(): AllowedDomain[] { return mockAllowedDomains }
+
+export function isDomainAllowed(email: string): boolean {
+  const at = email.lastIndexOf('@')
+  if (at < 0) return false
+  const domain = email.slice(at + 1).toLowerCase()
+  return mockAllowedDomains.some(d => d.domain === domain)
+}
+
+export async function fetchAllowedDomains(): Promise<AllowedDomain[]> {
+  return mockAllowedDomains
+}
+
+export async function addAllowedDomain(domain: string, description?: string): Promise<AllowedDomain> {
+  const normalized = domain.trim().toLowerCase()
+  if (mockAllowedDomains.some(d => d.domain === normalized)) {
+    throw new Error('이미 등록된 도메인입니다.')
+  }
+  const item: AllowedDomain = {
+    id: `dom${Date.now()}`,
+    domain: normalized,
+    description: description?.trim() || null,
+    createdAt: new Date().toISOString(),
+  }
+  mockAllowedDomains.push(item)
+  return item
+}
+
+export async function removeAllowedDomain(id: string): Promise<void> {
+  const idx = mockAllowedDomains.findIndex(d => d.id === id)
+  if (idx >= 0) mockAllowedDomains.splice(idx, 1)
+}
+
+export async function resendConfirmationEmail(_email: string): Promise<void> {
+  // Mock 환경에서는 no-op
+}
+
+export async function signUp(email: string, _password: string, nickname: string): Promise<SignUpResult> {
+  if (!isDomainAllowed(email)) {
+    throw new Error('허용되지 않은 이메일 도메인입니다.')
+  }
   const newUser: User = {
     id: `user${Date.now()}`,
     nickname,
@@ -98,7 +142,7 @@ export async function signUp(email: string, password: string, nickname: string):
   }
   mockUsers.push(newUser)
   _sessionUser = newUser
-  return newUser
+  return { user: newUser, requiresEmailConfirmation: false }
 }
 
 export async function signIn(email: string, password: string): Promise<User> {

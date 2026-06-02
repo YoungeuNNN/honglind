@@ -1,16 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useToastStore } from '@/components/ui/Toast'
 import { isPasswordValid, getPasswordRules, isValidEmail } from '@/utils/helpers'
 import * as DS from '@/api/dataService'
+import type { AllowedDomain } from '@/types'
 import { supabase, setRememberMe, getRememberMe } from '@/api/supabase'
 
 export function AuthPage() {
   const navigate = useNavigate()
   const { login, register, user } = useAuthStore()
   const toast = useToastStore(s => s.show)
-  const [mode, setMode] = useState<'login' | 'register' | 'reset'>('login')
+  const [mode, setMode] = useState<'login' | 'register' | 'reset' | 'verify-sent'>('login')
   const [error, setError] = useState('')
 
   // login state
@@ -19,12 +20,21 @@ export function AuthPage() {
   const [rememberMe, setRememberMeState] = useState<boolean>(getRememberMe())
 
   // register state
-  const [regEmail, setRegEmail] = useState('')
+  const [regLocal, setRegLocal] = useState('')
+  const [regDomain, setRegDomain] = useState('')
   const [regPw, setRegPw] = useState('')
   const [regPwConfirm, setRegPwConfirm] = useState('')
   const [regNickname, setRegNickname] = useState('')
   const [emailChecked, setEmailChecked] = useState(false)
   const [emailMsg, setEmailMsg] = useState<{ text: string; ok: boolean } | null>(null)
+
+  // allowed domains
+  const [allowedDomains, setAllowedDomains] = useState<AllowedDomain[]>(DS.getAllowedDomains())
+  const [domainsLoading, setDomainsLoading] = useState(false)
+
+  // verify-sent state
+  const [sentToEmail, setSentToEmail] = useState('')
+  const [resending, setResending] = useState(false)
 
   // reset state
   const [resetEmail, setResetEmail] = useState('')
@@ -32,34 +42,66 @@ export function AuthPage() {
   const [resetPw, setResetPw] = useState('')
   const [resetPwConfirm, setResetPwConfirm] = useState('')
 
+  useEffect(() => {
+    // 가입 폼이 열렸을 때 캐시 비어있으면 anon 으로 fetch
+    if (mode !== 'register') return
+    if (allowedDomains.length > 0) return
+    setDomainsLoading(true)
+    DS.fetchAllowedDomains()
+      .then(list => {
+        setAllowedDomains(list)
+        if (list.length === 1 && !regDomain) setRegDomain(list[0].domain)
+      })
+      .catch(err => {
+        console.error('allowed domains fetch failed:', err)
+      })
+      .finally(() => setDomainsLoading(false))
+  }, [mode, allowedDomains.length, regDomain])
+
+  // 도메인이 1개뿐이면 자동 선택
+  useEffect(() => {
+    if (mode === 'register' && allowedDomains.length === 1 && !regDomain) {
+      setRegDomain(allowedDomains[0].domain)
+    }
+  }, [mode, allowedDomains, regDomain])
+
   if (user) { navigate('/'); return null }
+
+  const regEmail = regLocal && regDomain ? `${regLocal}@${regDomain}` : ''
 
   const handleLogin = async () => {
     setError('')
     if (!loginEmail || !loginPw) { setError('이메일과 비밀번호를 입력하세요.'); return }
-    setRememberMe(rememberMe)  // 로그인 전에 storage 정책 결정
+    setRememberMe(rememberMe)
     const result = await login(loginEmail, loginPw)
     if (!result.ok) { setError(result.error || '로그인 실패'); return }
     navigate('/')
   }
 
   const checkEmailDuplicate = () => {
-    if (!regEmail) { setEmailMsg({ text: '이메일을 입력하세요.', ok: false }); setEmailChecked(false); return }
+    if (!regLocal || !regDomain) { setEmailMsg({ text: '이메일을 입력하세요.', ok: false }); setEmailChecked(false); return }
     if (!isValidEmail(regEmail)) { setEmailMsg({ text: '올바른 이메일 형식이 아닙니다.', ok: false }); setEmailChecked(false); return }
     if (DS.findUserByEmail(regEmail)) { setEmailMsg({ text: '이미 사용 중인 이메일입니다.', ok: false }); setEmailChecked(false); return }
-    setEmailMsg({ text: '\u2713 사용 가능한 이메일입니다.', ok: true })
+    setEmailMsg({ text: '✓ 사용 가능한 이메일입니다.', ok: true })
     setEmailChecked(true)
   }
 
   const handleRegister = async () => {
     setError('')
+    if (!regDomain) { setError('이메일 도메인을 선택하세요.'); return }
     if (!emailChecked) { setError('이메일 중복확인을 해주세요.'); return }
     if (!isPasswordValid(regPw)) { setError('비밀번호 조건을 모두 충족해야 합니다.'); return }
     if (regPw !== regPwConfirm) { setError('비밀번호가 일치하지 않습니다.'); return }
     if (!regNickname.trim()) { setError('닉네임을 입력하세요.'); return }
-    setRememberMe(true)  // 가입 시는 자동 로그인 기본값
+    setRememberMe(true)
     try {
-      await register({ nickname: regNickname.trim(), email: regEmail, password: regPw })
+      const result = await register({ nickname: regNickname.trim(), email: regEmail, password: regPw })
+      if (result.requiresEmailConfirmation) {
+        setSentToEmail(regEmail)
+        setMode('verify-sent')
+        toast('인증 메일을 발송했습니다. 메일함을 확인하세요.')
+        return
+      }
       toast('가입을 환영합니다! 은혜 가운데 교제하세요.')
       navigate('/')
     } catch (e) {
@@ -67,10 +109,22 @@ export function AuthPage() {
     }
   }
 
+  const handleResend = async () => {
+    if (!sentToEmail) return
+    setResending(true)
+    try {
+      await DS.resendConfirmationEmail(sentToEmail)
+      toast('인증 메일을 다시 발송했습니다.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '재전송에 실패했습니다.')
+    } finally {
+      setResending(false)
+    }
+  }
+
   const verifyResetEmail = async () => {
     if (!resetEmail) { setError('이메일을 입력하세요.'); return }
     setError('')
-    // Supabase 표준 — 비밀번호 재설정 메일 발송
     const { error: rErr } = await supabase.auth.resetPasswordForEmail(resetEmail, {
       redirectTo: window.location.origin + '/auth',
     })
@@ -80,7 +134,6 @@ export function AuthPage() {
   }
 
   const handlePasswordReset = async () => {
-    // 사용자가 메일 링크를 통해 들어왔을 때 (recovery session) 활용
     if (!isPasswordValid(resetPw)) { setError('비밀번호 조건을 충족해야 합니다.'); return }
     if (resetPw !== resetPwConfirm) { setError('비밀번호가 일치하지 않습니다.'); return }
     const { error: uErr } = await supabase.auth.updateUser({ password: resetPw })
@@ -91,13 +144,14 @@ export function AuthPage() {
   }
 
   const pwRules = getPasswordRules(mode === 'register' ? regPw : resetPw)
-  const canRegister = emailChecked && isPasswordValid(regPw) && regPw === regPwConfirm && regNickname.trim().length > 0
+  const canRegister = !!regDomain && emailChecked && isPasswordValid(regPw) && regPw === regPwConfirm && regNickname.trim().length > 0
   const canReset = isPasswordValid(resetPw) && resetPw === resetPwConfirm
   const pwMatch = mode === 'register' ? regPwConfirm && regPw === regPwConfirm : resetPwConfirm && resetPw === resetPwConfirm
   const pwMismatch = mode === 'register' ? regPwConfirm && regPw !== regPwConfirm : resetPwConfirm && resetPw !== resetPwConfirm
 
   const subtitle = mode === 'login' ? '사역자 & 신학생을 위한 익명 커뮤니티'
     : mode === 'register' ? '홍라인드에 가입하고 함께 나누세요'
+    : mode === 'verify-sent' ? '이메일 인증을 완료해주세요'
     : '비밀번호 재설정'
 
   return (
@@ -148,9 +202,35 @@ export function AuthPage() {
             <div className="form-group">
               <label>이메일 (아이디)</label>
               <div className="form-row">
-                <input type="email" className="form-input" placeholder="example@seminary.ac.kr"
-                  value={regEmail} onChange={e => { setRegEmail(e.target.value); setEmailChecked(false); setEmailMsg(null) }} />
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="아이디"
+                  value={regLocal}
+                  onChange={e => { setRegLocal(e.target.value); setEmailChecked(false); setEmailMsg(null) }}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ alignSelf: 'center', color: 'var(--subtext)', fontSize: 13 }}>@</span>
+                <select
+                  className="form-input"
+                  value={regDomain}
+                  onChange={e => { setRegDomain(e.target.value); setEmailChecked(false); setEmailMsg(null) }}
+                  disabled={domainsLoading || allowedDomains.length === 0}
+                  style={{ flex: 1.2 }}
+                >
+                  {domainsLoading && <option value="">불러오는 중...</option>}
+                  {!domainsLoading && allowedDomains.length === 0 && <option value="">사용 가능한 도메인 없음</option>}
+                  {!domainsLoading && allowedDomains.length > 0 && !regDomain && <option value="">도메인 선택</option>}
+                  {allowedDomains.map(d => (
+                    <option key={d.id} value={d.domain}>
+                      {d.domain}
+                    </option>
+                  ))}
+                </select>
                 <button type="button" className="btn btn-secondary" onClick={checkEmailDuplicate} style={{ whiteSpace: 'nowrap' }}>중복확인</button>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--subtext)', marginTop: 4 }}>
+                지정된 학교/기관 도메인의 이메일로만 가입할 수 있습니다.
               </div>
               {emailMsg && <div className={`email-check-msg ${emailMsg.ok ? 'ok' : 'err'}`}>{emailMsg.text}</div>}
             </div>
@@ -160,7 +240,7 @@ export function AuthPage() {
               <ul className="validation-list">
                 {pwRules.map(r => (
                   <li key={r.key} className={r.pass ? 'pass' : 'fail'}>
-                    <span className="vicon">{r.pass ? '\u2713' : '\u2717'}</span> {r.label}
+                    <span className="vicon">{r.pass ? '✓' : '✗'}</span> {r.label}
                   </li>
                 ))}
               </ul>
@@ -169,7 +249,7 @@ export function AuthPage() {
               <label>비밀번호 확인</label>
               <input type="password" className="form-input" placeholder="비밀번호를 다시 입력"
                 value={regPwConfirm} onChange={e => setRegPwConfirm(e.target.value)} />
-              {pwMatch && <div className="email-check-msg ok">{'\u2713'} 비밀번호가 일치합니다.</div>}
+              {pwMatch && <div className="email-check-msg ok">{'✓'} 비밀번호가 일치합니다.</div>}
               {pwMismatch && <div className="email-check-msg err">비밀번호가 일치하지 않습니다.</div>}
             </div>
             <div className="form-group">
@@ -180,6 +260,25 @@ export function AuthPage() {
             <button type="submit" className="auth-btn" disabled={!canRegister}>가입하기</button>
             <div className="auth-switch">이미 계정이 있으신가요? <a onClick={() => { setMode('login'); setError('') }}>로그인</a></div>
           </form>
+        )}
+
+        {/* Email Verification Sent */}
+        {mode === 'verify-sent' && (
+          <div>
+            <div style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.6, marginBottom: 16 }}>
+              <strong>{sentToEmail}</strong> 으로 인증 메일을 보냈습니다.<br/>
+              메일함을 확인하고 인증 링크를 클릭한 뒤 로그인해주세요.
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--subtext)', marginBottom: 16 }}>
+              메일이 오지 않았다면 스팸함을 확인해주세요. 일정 시간 후 재전송할 수 있습니다.
+            </div>
+            <button type="button" className="auth-btn" onClick={handleResend} disabled={resending}>
+              {resending ? '발송 중...' : '인증 메일 재전송'}
+            </button>
+            <div className="auth-switch" style={{ marginTop: 12 }}>
+              <a onClick={() => { setMode('login'); setError(''); setSentToEmail('') }}>로그인 화면으로</a>
+            </div>
+          </div>
         )}
 
         {/* Reset Form */}
@@ -203,7 +302,7 @@ export function AuthPage() {
                   <ul className="validation-list">
                     {pwRules.map(r => (
                       <li key={r.key} className={r.pass ? 'pass' : 'fail'}>
-                        <span className="vicon">{r.pass ? '\u2713' : '\u2717'}</span> {r.label}
+                        <span className="vicon">{r.pass ? '✓' : '✗'}</span> {r.label}
                       </li>
                     ))}
                   </ul>
@@ -211,7 +310,7 @@ export function AuthPage() {
                 <div className="form-group">
                   <label>새 비밀번호 확인</label>
                   <input type="password" className="form-input" placeholder="비밀번호 확인" value={resetPwConfirm} onChange={e => setResetPwConfirm(e.target.value)} />
-                  {pwMatch && <div className="email-check-msg ok">{'\u2713'} 비밀번호가 일치합니다.</div>}
+                  {pwMatch && <div className="email-check-msg ok">{'✓'} 비밀번호가 일치합니다.</div>}
                   {pwMismatch && <div className="email-check-msg err">비밀번호가 일치하지 않습니다.</div>}
                 </div>
                 <button className="auth-btn" onClick={handlePasswordReset} disabled={!canReset}>비밀번호 변경</button>
