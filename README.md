@@ -1,73 +1,83 @@
-# React + TypeScript + Vite
+# 홍라인드 (Honglind)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> 사역자 & 신학생을 위한 익명 커뮤니티
 
-Currently, two official plugins are available:
+운영 사이트: https://honglind.netlify.app
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 기술 스택
 
-## React Compiler
+- React 19 + TypeScript + Vite 8
+- Supabase (Auth + Postgres + RLS)
+- React Router 7, React Hook Form, Zustand, React Query
+- Netlify (호스팅)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 로컬 개발
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev      # http://localhost:3000
+npm run build
+npm run lint
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Node 20 권장 (`.nvmrc` 참고).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 환경변수
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+`.env.example` 참고. 로컬은 `.env`, 운영은 Netlify Site configuration → Environment variables.
+
+| Key | 용도 |
+|---|---|
+| `VITE_SUPABASE_URL` | Supabase 프로젝트 URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon public key |
+| `VITE_API_URL` | (mock 모드 등 보조 API용) |
+| `VITE_USE_MOCK` | `true`면 mock dataService 사용 |
+
+## Supabase
+
+- 프로젝트 ref: `xtdxuhherccakugpcwio`
+- 마이그레이션: `supabase/migrations/`
+- 적용: `supabase db push --linked`
+
+회원가입 도메인 화이트리스트는 `public.allowed_email_domains` 테이블로 관리. 관리자 권한 사용자는 AdminPage에서 추가/삭제 가능. SQL 직접 추가:
+
+```sql
+insert into public.allowed_email_domains (domain, description)
+values ('example.ac.kr', '설명');
 ```
+
+## 배포 (Netlify)
+
+- 빌드 명령: `npm run build`, 퍼블리시 디렉토리: `dist` (`netlify.toml`)
+- 환경변수 변경 후엔 **Trigger deploy → Clear cache and deploy site** 필수 (Vite는 빌드 시점에 변수를 번들에 굽기 때문)
+
+## 운영 TODO
+
+### 🔴 SMTP 연결 (미완료)
+
+현재 Supabase 내장 메일서버 사용 중 → **시간당 약 2~4통 한도**. 가입자 늘기 전에 외부 SMTP로 전환 필요.
+
+**권장: Resend (무료 3000통/월)**
+
+1. https://resend.com 가입 → API Key 발급 (`re_...`)
+2. 본인 도메인이 있으면 Resend → Domains 에 등록 + DNS(SPF/DKIM) 설정 (없으면 일단 `onboarding@resend.dev` 로 본인 메일 한정 테스트)
+3. Supabase Dashboard → Authentication → Emails → SMTP Settings → Enable Custom SMTP:
+   - Host: `smtp.resend.com`
+   - Port: `465`
+   - Username: `resend`
+   - Password: 발급받은 API Key
+   - Sender email / name: 위 2단계에 맞춰
+4. Authentication → Users → 본인 계정 → Send magic link 로 발송 검증
+
+대체 provider (SendGrid/SES/Mailgun) 도 동일하게 SMTP 정보 입력만 다르면 됨.
+
+### 기타
+
+- [ ] Resend 도메인 인증 후 운영 sender 주소 확정
+- [ ] 이메일 템플릿 한국어화 (Authentication → Email Templates)
+- [ ] AdminPage 화이트리스트 관리 UX 다듬기
+
+## 관련 문서
+
+- [PLANNING.md](./PLANNING.md) — 본 기획서 (Step 1~8 전체 명세)
+- [PLANNING_EXTENSION.md](./PLANNING_EXTENSION.md) — 확장 기획 (마켓플레이스/기업회원 등)
