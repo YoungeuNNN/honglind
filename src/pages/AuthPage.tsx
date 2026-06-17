@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
-import { useToastStore } from '@/components/ui/Toast'
+import { useToastStore } from '@/stores/toastStore'
 import { isPasswordValid, getPasswordRules, isValidEmail } from '@/utils/helpers'
 import * as DS from '@/api/dataService'
 import type { AllowedDomain } from '@/types'

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useUIStore } from '@/stores/uiStore'
-import { useToastStore } from '@/components/ui/Toast'
+import { useToastStore } from '@/stores/toastStore'
 import * as DS from '@/api/dataService'
 import { timeAgo } from '@/utils/helpers'
 import { HeartIcon, BackIcon, FlagIcon, ShareIcon, BookmarkIcon } from '@/components/ui/Icons'
@@ -19,13 +19,13 @@ export function PostDetailPage() {
   const [commentText, setCommentText] = useState('')
 
   const post = id ? DS.getPostById(id) : undefined
-  if (!post) { navigate('/'); return null }
 
   // 조회수 증가 — 페이지 진입 시 1회
   useEffect(() => {
     if (id) DS.incrementViews(id).then(rerender).catch(console.error)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  if (!post) { navigate('/'); return null }
 
   const allComments = DS.getComments().filter(c => c.postId === post.id)
   const topComments = allComments.filter(c => !c.parentId)

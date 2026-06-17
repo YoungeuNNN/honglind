@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
-import { useToastStore } from '@/components/ui/Toast'
+import { useToastStore } from '@/stores/toastStore'
 import * as DS from '@/api/dataService'
 import { CATEGORIES, CATEGORY_LABELS } from '@/utils/constants'
 import { BackIcon } from '@/components/ui/Icons'

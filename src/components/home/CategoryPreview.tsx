@@ -11,7 +11,7 @@ interface CategoryPreviewProps {
   commentCounts: { [postId: string]: number }
 }
 
-export function CategoryPreview({ category, categoryLabel, emoji, posts, commentCounts }: CategoryPreviewProps) {
+export function CategoryPreview({ category, categoryLabel, emoji, posts }: CategoryPreviewProps) {
   const navigate = useNavigate()
   const guard = useAuthAction()
 

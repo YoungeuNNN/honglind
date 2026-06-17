@@ -12,12 +12,15 @@ export function DMThreadPage() {
   const [msgText, setMsgText] = useState('')
   const [, setTick] = useState(0)
   const threadRef = useRef<HTMLDivElement>(null)
-  if (!user || !otherUserId) return null
-  const other = DS.getUserById(otherUserId)
-  const otherName = other ? other.nickname : '탈퇴한 사용자'
-  const msgs = DS.getThread(user.id, otherUserId)
-  useEffect(() => { DS.markThreadRead(user.id, otherUserId!).catch(console.error) }, [user.id, otherUserId])
+  const other = user && otherUserId ? DS.getUserById(otherUserId) : undefined
+  const msgs = user && otherUserId ? DS.getThread(user.id, otherUserId) : []
+  useEffect(() => {
+    if (!user || !otherUserId) return
+    DS.markThreadRead(user.id, otherUserId).catch(console.error)
+  }, [user, otherUserId])
   useEffect(() => { if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight }, [msgs.length])
+  if (!user || !otherUserId) return null
+  const otherName = other ? other.nickname : '탈퇴한 사용자'
   const send = async () => {
     if (!msgText.trim()) return
     try {

@@ -2,7 +2,7 @@
  * Mock Data Service - 개발용 임시 데이터
  * Supabase 연결 없이 테스트할 수 있도록 하는 목 데이터 서비스
  */
-import type { User, Post, Comment, Notification, Message, Report, Block, Bookmark, Announcement, AllowedDomain, SignUpResult } from '@/types'
+import type { User, Post, Comment, Notification, Message, Report, Block, Bookmark, Announcement, AllowedDomain, SignUpResult, Conversation } from '@/types'
 
 // Mock 데이터
 const mockUsers: User[] = [
@@ -145,7 +145,7 @@ export async function signUp(email: string, _password: string, nickname: string)
   return { user: newUser, requiresEmailConfirmation: false }
 }
 
-export async function signIn(email: string, password: string): Promise<User> {
+export async function signIn(email: string, _password: string): Promise<User> {
   const user = mockUsers.find(u => u.email === email)
   if (!user) throw new Error('사용자를 찾을 수 없습니다.')
   _sessionUser = user
@@ -172,7 +172,7 @@ export async function updateUser(id: string, updates: Partial<User>): Promise<Us
   return user
 }
 
-export async function deleteUser(id: string): Promise<void> {
+export async function deleteUser(_id: string): Promise<void> {
   // Mock에서는 실제로 삭제하지 않음
 }
 
@@ -213,7 +213,7 @@ export async function togglePostLike(postId: string): Promise<boolean> {
   const post = getPostById(postId)
   const userId = _sessionUser?.id
   if (!post || !userId) return false
-  
+
   const index = post.likes.indexOf(userId)
   if (index >= 0) {
     post.likes.splice(index, 1)
@@ -228,7 +228,7 @@ export async function togglePostPrayer(postId: string): Promise<boolean> {
   const post = getPostById(postId)
   const userId = _sessionUser?.id
   if (!post || !userId || !post.prayers) return false
-  
+
   const index = post.prayers.indexOf(userId)
   if (index >= 0) {
     post.prayers.splice(index, 1)
@@ -261,15 +261,15 @@ export async function createComment(data: Partial<Comment>): Promise<Comment> {
   return newComment
 }
 
-export async function updateComment(id: string, updates: Partial<Comment>): Promise<Comment | null> {
+export async function updateComment(_id: string, _updates: Partial<Comment>): Promise<Comment | null> {
   return null
 }
 
-export async function deleteComment(id: string): Promise<void> {
+export async function deleteComment(_id: string): Promise<void> {
   // Mock에서는 실제로 삭제하지 않음
 }
 
-export async function toggleCommentLike(commentId: string): Promise<boolean> {
+export async function toggleCommentLike(_commentId: string): Promise<boolean> {
   return false
 }
 
@@ -277,15 +277,15 @@ export function getBookmarks(): Bookmark[] {
   return []
 }
 
-export async function toggleBookmark(userId: string, postId: string): Promise<boolean> {
+export async function toggleBookmark(_userId: string, _postId: string): Promise<boolean> {
   return false
 }
 
-export function isBookmarked(userId: string, postId: string): boolean {
+export function isBookmarked(_userId: string, _postId: string): boolean {
   return false
 }
 
-export function getUserBookmarks(userId: string): Bookmark[] {
+export function getUserBookmarks(_userId: string): Bookmark[] {
   return []
 }
 
@@ -293,19 +293,19 @@ export function getBlocks(): Block[] {
   return []
 }
 
-export async function blockUser(blockerId: string, blockedId: string): Promise<void> {
+export async function blockUser(_blockerId: string, _blockedId: string): Promise<void> {
   // Mock에서는 실제로 차단하지 않음
 }
 
-export async function unblockUser(blockerId: string, blockedId: string): Promise<void> {
+export async function unblockUser(_blockerId: string, _blockedId: string): Promise<void> {
   // Mock에서는 실제로 해제하지 않음
 }
 
-export function isBlocked(blockerId: string, blockedId: string): boolean {
+export function isBlocked(_blockerId: string, _blockedId: string): boolean {
   return false
 }
 
-export function getBlockedIds(userId: string): string[] {
+export function getBlockedIds(_userId: string): string[] {
   return []
 }
 
@@ -326,19 +326,19 @@ export async function createNotification(data: Partial<Notification>): Promise<N
   return newNotification
 }
 
-export function getUserNotifications(userId: string): Notification[] {
+export function getUserNotifications(_userId: string): Notification[] {
   return []
 }
 
-export function getUnreadCount(userId: string): number {
+export function getUnreadCount(_userId: string): number {
   return 0
 }
 
-export async function markRead(notifId: string): Promise<void> {
+export async function markRead(_notifId: string): Promise<void> {
   // Mock에서는 실제로 읽음 처리하지 않음
 }
 
-export async function markAllRead(userId: string): Promise<void> {
+export async function markAllRead(_userId: string): Promise<void> {
   // Mock에서는 실제로 읽음 처리하지 않음
 }
 
@@ -358,15 +358,15 @@ export async function createMessage(data: Partial<Message>): Promise<Message> {
   return newMessage
 }
 
-export function getThread(userId: string, otherUserId: string): Message[] {
+export function getThread(_userId: string, _otherUserId: string): Message[] {
   return []
 }
 
-export function getConversations(userId: string): any[] {
+export function getConversations(_userId: string): Conversation[] {
   return []
 }
 
-export async function markThreadRead(userId: string, otherUserId: string): Promise<void> {
+export async function markThreadRead(_userId: string, _otherUserId: string): Promise<void> {
   // Mock에서는 실제로 읽음 처리하지 않음
 }
 
@@ -388,11 +388,11 @@ export async function createReport(data: Partial<Report>): Promise<Report> {
   return newReport
 }
 
-export async function updateReport(id: string, updates: Partial<Report>): Promise<void> {
+export async function updateReport(_id: string, _updates: Partial<Report>): Promise<void> {
   // Mock에서는 실제로 업데이트하지 않음
 }
 
-export function hasReported(userId: string, targetType: string, targetId: string): boolean {
+export function hasReported(_userId: string, _targetType: string, _targetId: string): boolean {
   return false
 }
 
@@ -411,11 +411,11 @@ export async function createAnnouncementItem(data: Partial<Announcement>): Promi
   return newAnnouncement
 }
 
-export async function deleteAnnouncementItem(id: string): Promise<void> {
+export async function deleteAnnouncementItem(_id: string): Promise<void> {
   // Mock에서는 실제로 삭제하지 않음
 }
 
-export async function togglePollVote(postId: string, optionIndex: number): Promise<void> {
+export async function togglePollVote(_postId: string, _optionIndex: number): Promise<void> {
   // Mock에서는 실제로 투표하지 않음
 }
 

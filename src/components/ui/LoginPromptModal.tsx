@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUIStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
-import { useToastStore } from '@/components/ui/Toast'
+import { useToastStore } from '@/stores/toastStore'
 import { setRememberMe, getRememberMe } from '@/api/supabase'
 
 export function LoginPromptModal() {

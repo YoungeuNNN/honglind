@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
-import { useToastStore } from '@/components/ui/Toast'
+import { useToastStore } from '@/stores/toastStore'
 import * as DS from '@/api/dataService'
 import { supabase } from '@/api/supabase'
 import { BackIcon } from '@/components/ui/Icons'

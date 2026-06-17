@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useUIStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
-import { useToastStore } from '@/components/ui/Toast'
+import { useToastStore } from '@/stores/toastStore'
 import * as DS from '@/api/dataService'
 import { REPORT_REASONS } from '@/utils/constants'
 

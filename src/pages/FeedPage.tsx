@@ -54,7 +54,7 @@ export function FeedPage() {
         
         <div className="home-content">
           {CATEGORIES.map(cat => {
-            let categoryPosts = allPosts.filter(p => {
+            const categoryPosts = allPosts.filter(p => {
               if (blockedIds.length && blockedIds.includes(p.authorId)) return false
               if (cat.category === '인기') return p.likes.length >= 3
               return p.category === cat.category

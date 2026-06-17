@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
-import { useToastStore } from '@/components/ui/Toast'
+import { useToastStore } from '@/stores/toastStore'
 import * as DS from '@/api/dataService'
 import { timeAgo } from '@/utils/helpers'
 
@@ -38,7 +38,7 @@ export function AdminPage() {
         <button className={`admin-tab ${tab==='domains'?'active':''}`} onClick={()=>setTab('domains')}>허용 도메인</button>
       </div>
       {tab==='reports' && (!reports.length ? <p style={{color:'var(--subtext)',padding:'20px 0'}}>신고 내역이 없습니다.</p> :
-        [...reports].sort((a,b)=>a.status==='pending'?-1:1).map(r=>(
+        [...reports].sort((a)=>a.status==='pending'?-1:1).map(r=>(
           <div key={r.id} className="admin-card fade-in">
             <div className="admin-card-body">
               <div className="label">{r.targetType==='post'?'게시글':'댓글'} 신고 · {reasonLabels[r.reason]||r.reason} · {timeAgo(r.createdAt)}</div>
