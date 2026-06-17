@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
-import { timeAgo } from '@/utils/helpers'
 import { EyeIcon } from '@/components/ui/Icons'
+import { useAuthAction } from '@/hooks/useAuthAction'
 import type { Post } from '@/types'
 
 interface CategoryPreviewProps {
@@ -13,6 +13,7 @@ interface CategoryPreviewProps {
 
 export function CategoryPreview({ category, categoryLabel, emoji, posts, commentCounts }: CategoryPreviewProps) {
   const navigate = useNavigate()
+  const guard = useAuthAction()
 
   if (!posts.length) return null
 
@@ -37,7 +38,7 @@ export function CategoryPreview({ category, categoryLabel, emoji, posts, comment
           <div
             key={post.id}
             className="category-preview-post"
-            onClick={() => navigate(`/post/${post.id}`)}
+            onClick={guard(() => navigate(`/post/${post.id}`))}
           >
             <div className="preview-post-row">
               <div className="preview-post-title">{post.title}</div>

@@ -10,6 +10,7 @@ interface UIState {
   userMenuOpen: boolean
   notifPanelOpen: boolean
   reportModal: ReportModalState
+  loginPromptOpen: boolean
 
   toggleUserMenu: () => void
   closeUserMenu: () => void
@@ -17,12 +18,15 @@ interface UIState {
   closeNotifPanel: () => void
   openReportModal: (targetType: 'post' | 'comment', targetId: string) => void
   closeReportModal: () => void
+  openLoginPrompt: () => void
+  closeLoginPrompt: () => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
   userMenuOpen: false,
   notifPanelOpen: false,
   reportModal: { open: false, targetType: 'post', targetId: '' },
+  loginPromptOpen: false,
 
   toggleUserMenu: () => set(s => ({ userMenuOpen: !s.userMenuOpen })),
   closeUserMenu: () => set({ userMenuOpen: false }),
@@ -30,4 +34,6 @@ export const useUIStore = create<UIState>((set) => ({
   closeNotifPanel: () => set({ notifPanelOpen: false }),
   openReportModal: (targetType, targetId) => set({ reportModal: { open: true, targetType, targetId } }),
   closeReportModal: () => set(s => ({ reportModal: { ...s.reportModal, open: false } })),
+  openLoginPrompt: () => set({ loginPromptOpen: true }),
+  closeLoginPrompt: () => set({ loginPromptOpen: false }),
 }))

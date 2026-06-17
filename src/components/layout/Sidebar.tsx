@@ -15,7 +15,6 @@ const SIDEBAR_ITEMS = [
     { category: '설교나눔', label: '설교 나눔', emoji: '\u{26F3}' },
     { category: '기도요청', label: '기도요청', emoji: '\u{1F54A}' },
     { category: '연봉', label: '사례비/처우', emoji: '\u{1F4B0}' },
-    { category: '유머', label: '유머/위로', emoji: '\u{1F60A}' },
   ]},
   { section: '청빙', items: [
     { category: '청빙', label: '청빙 공고', emoji: '\u{1F4E3}', tag: 'NEW' },

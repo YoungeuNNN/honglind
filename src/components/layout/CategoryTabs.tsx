@@ -11,7 +11,6 @@ const CATEGORY_ITEMS = [
   { category: '설교나눔', label: '설교 나눔', emoji: '⛳' },
   { category: '기도요청', label: '기도요청', emoji: '🕊️' },
   { category: '연봉', label: '사례비/처우', emoji: '💰' },
-  { category: '유머', label: '유머/위로', emoji: '😊' },
   { category: '청빙', label: '청빙 공고', emoji: '📢' },
 ]
 

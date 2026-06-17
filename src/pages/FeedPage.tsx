@@ -1,6 +1,7 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
+import { useAuthAction } from '@/hooks/useAuthAction'
 import * as DS from '@/api/dataService'
 import { CATEGORY_LABELS } from '@/utils/constants'
 import { timeAgo, getDailyVerse } from '@/utils/helpers'
@@ -18,12 +19,12 @@ const CATEGORIES = [
   { category: '설교나눔', label: '설교 나눔', emoji: '⛳' },
   { category: '기도요청', label: '기도요청', emoji: '🕊️' },
   { category: '연봉', label: '사례비/처우', emoji: '💰' },
-  { category: '유머', label: '유머/위로', emoji: '😊' },
   { category: '청빙', label: '청빙 공고', emoji: '📢' },
 ]
 
 export function FeedPage() {
   const navigate = useNavigate()
+  const guard = useAuthAction()
   const [searchParams] = useSearchParams()
   const { user } = useAuthStore()
   const [sort, setSort] = useState<'latest' | 'popular'>('latest')
@@ -114,7 +115,7 @@ export function FeedPage() {
       {!visiblePosts.length ? (
         <div className="empty-state fade-in"><p>{search ? '검색 결과가 없습니다.' : '아직 게시글이 없습니다.'}</p></div>
       ) : (
-        visiblePosts.map(p => <PostCard key={p.id} post={p} commentCount={commentCounts[p.id] || 0} userId={user?.id} onClick={() => navigate(`/post/${p.id}`)} />)
+        visiblePosts.map(p => <PostCard key={p.id} post={p} commentCount={commentCounts[p.id] || 0} userId={user?.id} onClick={guard(() => navigate(`/post/${p.id}`))} />)
       )}
 
       {hasMore && (
@@ -172,12 +173,13 @@ function DailyVerseSection() {
 
 function AnnouncementSection() {
   const navigate = useNavigate()
+  const guard = useAuthAction()
   const anns = DS.getAnnouncements()
   if (!anns.length) return null
   return (
     <>
       {anns.map(a => (
-        <div key={a.id} className="announcement-card fade-in" onClick={() => navigate('/admin')}>
+        <div key={a.id} className="announcement-card fade-in" onClick={guard(() => navigate('/admin'))}>
           <span className="announcement-badge">공지</span>
           <strong>{a.title}</strong>
           <span style={{ fontSize: 12, color: 'var(--subtext)', marginLeft: 8 }}>{timeAgo(a.createdAt)}</span>
@@ -189,12 +191,13 @@ function AnnouncementSection() {
 
 function TrendingSection() {
   const navigate = useNavigate()
+  const guard = useAuthAction()
   const trending = [...DS.getPosts()].sort((a, b) => b.views - a.views).slice(0, 5)
   return (
     <div className="trending-section fade-in">
       <h3>{'\u{1F525}'} 실시간 인기</h3>
       {trending.map((p, i) => (
-        <div key={p.id} className="trending-item" onClick={() => navigate(`/post/${p.id}`)}>
+        <div key={p.id} className="trending-item" onClick={guard(() => navigate(`/post/${p.id}`))}>
           <span className="trending-rank">{i + 1}</span>
           <span className={`post-category cat-${p.category}`} style={{ fontSize: 11, padding: '1px 6px' }}>{p.category}</span>
           <span className="trending-title">{p.title}</span>

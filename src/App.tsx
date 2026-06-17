@@ -54,9 +54,13 @@ export default function App() {
             {/* 인증 불필요 */}
             <Route path="/auth" element={<AuthPage />} />
 
+            {/* 공개 — 로그인 없이 볼 수 있는 페이지 (홈/게시판 목록) */}
+            <Route element={<AppLayout />}>
+              <Route path="/" element={<FeedPage />} />
+            </Route>
+
             {/* 인증 필요 — AppLayout 안에 렌더링 */}
             <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
-              <Route path="/" element={<FeedPage />} />
               <Route path="/post/:id" element={<PostDetailPage />} />
               <Route path="/write" element={<WritePage />} />
               <Route path="/write/:id" element={<WritePage />} />

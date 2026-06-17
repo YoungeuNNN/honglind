@@ -1,6 +1,6 @@
 export const CATEGORIES = [
   '자유', '사역고민', '교회생활', '신학교',
-  '신학토론', '설교나눔', '기도요청', '연봉', '유머', '청빙',
+  '신학토론', '설교나눔', '기도요청', '연봉', '청빙',
 ] as const
 
 export const CATEGORY_LABELS: Record<string, string> = {
@@ -12,7 +12,6 @@ export const CATEGORY_LABELS: Record<string, string> = {
   설교나눔: '설교 나눔',
   기도요청: '기도요청',
   연봉:     '사례비/처우',
-  유머:     '유머/위로',
   청빙:     '청빙 공고',
 }
 
@@ -45,6 +44,5 @@ export const CATEGORY_EMOJIS: Record<string, string> = {
   설교나눔: '\u{26F3}',
   기도요청: '\u{1F54A}',
   연봉:     '\u{1F4B0}',
-  유머:     '\u{1F60A}',
   청빙:     '\u{1F4E3}',
 }

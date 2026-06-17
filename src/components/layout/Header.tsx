@@ -1,16 +1,23 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { useUIStore } from '@/stores/uiStore'
-import { SearchIcon, BellIcon, PlusIcon, DocumentIcon, BookmarkIcon, MessageIcon, SettingsIcon, ShieldIcon, LogoutIcon } from '@/components/ui/Icons'
+import { useAuthAction } from '@/hooks/useAuthAction'
+import { SearchIcon, PlusIcon, DocumentIcon, BookmarkIcon, MessageIcon, SettingsIcon, ShieldIcon, LogoutIcon } from '@/components/ui/Icons'
 import { NotificationPanel } from '@/components/notification/NotificationPanel'
 
 export function Header() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const guard = useAuthAction()
   const { user, logout } = useAuthStore()
   const { userMenuOpen, toggleUserMenu, closeUserMenu } = useUIStore()
   const [searchQuery, setSearchQuery] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // 메인(홈) 화면에서는 사용자 정보(알림/아바타/메뉴)를 모두 숨긴다
+  const isMain = location.pathname === '/'
+  const showUserInfo = !!user && !isMain
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -28,11 +35,9 @@ export function Header() {
 
   const handleLogout = async () => {
     closeUserMenu()
-    navigate('/auth', { replace: true })
+    navigate('/', { replace: true })
     try { await logout() } catch (e) { console.error('logout failed:', e) }
   }
-
-  if (!user) return null
 
   return (
     <header className="header">
@@ -53,39 +58,47 @@ export function Header() {
         </div>
       </div>
       <div className="header-right">
-        <NotificationPanel />
-        <button className="btn btn-primary btn-small" onClick={() => navigate('/write')} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        {showUserInfo && <NotificationPanel />}
+        <button className="btn btn-primary btn-small" onClick={guard(() => navigate('/write'))} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <PlusIcon /> 글쓰기
         </button>
-        <div className="user-menu" ref={menuRef}>
-          <div className="user-avatar" onClick={toggleUserMenu}>{user.nickname[0]}</div>
-          <div className={`user-dropdown ${userMenuOpen ? 'show' : ''}`}>
-            <div className="user-dropdown-header">
-              {user.nickname}
-              <small>{user.email}</small>
-            </div>
-            <div className="user-dropdown-item" onClick={() => { closeUserMenu(); navigate('/my-posts') }}>
-              <DocumentIcon /> 내가 쓴 글
-            </div>
-            <div className="user-dropdown-item" onClick={() => { closeUserMenu(); navigate('/bookmarks') }}>
-              <BookmarkIcon /> 저장한 글
-            </div>
-            <div className="user-dropdown-item" onClick={() => { closeUserMenu(); navigate('/dm') }}>
-              <MessageIcon /> 쪽지함
-            </div>
-            <div className="user-dropdown-item" onClick={() => { closeUserMenu(); navigate('/settings') }}>
-              <SettingsIcon /> 계정 설정
-            </div>
-            {user.role === 'admin' && (
-              <div className="user-dropdown-item" onClick={() => { closeUserMenu(); navigate('/admin') }} style={{ color: 'var(--primary)' }}>
-                <ShieldIcon /> 관리자
+        {showUserInfo ? (
+          <div className="user-menu" ref={menuRef}>
+            <div className="user-avatar" onClick={toggleUserMenu}>{user.nickname[0]}</div>
+            <div className={`user-dropdown ${userMenuOpen ? 'show' : ''}`}>
+              <div className="user-dropdown-header">
+                {user.nickname}
+                <small>{user.email}</small>
               </div>
-            )}
-            <div className="user-dropdown-item" onClick={handleLogout} style={{ color: 'var(--danger)' }}>
-              <LogoutIcon /> 로그아웃
+              <div className="user-dropdown-item" onClick={() => { closeUserMenu(); navigate('/my-posts') }}>
+                <DocumentIcon /> 내가 쓴 글
+              </div>
+              <div className="user-dropdown-item" onClick={() => { closeUserMenu(); navigate('/bookmarks') }}>
+                <BookmarkIcon /> 저장한 글
+              </div>
+              <div className="user-dropdown-item" onClick={() => { closeUserMenu(); navigate('/dm') }}>
+                <MessageIcon /> 쪽지함
+              </div>
+              <div className="user-dropdown-item" onClick={() => { closeUserMenu(); navigate('/settings') }}>
+                <SettingsIcon /> 계정 설정
+              </div>
+              {user.role === 'admin' && (
+                <div className="user-dropdown-item" onClick={() => { closeUserMenu(); navigate('/admin') }} style={{ color: 'var(--primary)' }}>
+                  <ShieldIcon /> 관리자
+                </div>
+              )}
+              <div className="user-dropdown-item" onClick={handleLogout} style={{ color: 'var(--danger)' }}>
+                <LogoutIcon /> 로그아웃
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          !user && (
+            <button className="btn btn-secondary btn-small" onClick={() => navigate('/auth')}>
+              로그인
+            </button>
+          )
+        )}
       </div>
     </header>
   )

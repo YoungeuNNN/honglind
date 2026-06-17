@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useToastStore } from '@/components/ui/Toast'
 import { isPasswordValid, getPasswordRules, isValidEmail } from '@/utils/helpers'
@@ -9,9 +9,13 @@ import { supabase, setRememberMe, getRememberMe } from '@/api/supabase'
 
 export function AuthPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const navState = location.state as { from?: { pathname?: string; search?: string }; mode?: 'login' | 'register' } | null
+  const redirectTo = navState?.from
+  const goAfterAuth = () => navigate(redirectTo?.pathname ? `${redirectTo.pathname}${redirectTo.search || ''}` : '/', { replace: true })
   const { login, register, user } = useAuthStore()
   const toast = useToastStore(s => s.show)
-  const [mode, setMode] = useState<'login' | 'register' | 'reset' | 'verify-sent'>('login')
+  const [mode, setMode] = useState<'login' | 'register' | 'reset' | 'verify-sent'>(navState?.mode === 'register' ? 'register' : 'login')
   const [error, setError] = useState('')
 
   // login state
@@ -65,7 +69,12 @@ export function AuthPage() {
     }
   }, [mode, allowedDomains, regDomain])
 
-  if (user) { navigate('/'); return null }
+  // 로그인 상태면 원래 가려던 곳(또는 홈)으로
+  useEffect(() => {
+    if (user) goAfterAuth()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+  if (user) return null
 
   const regEmail = regLocal && regDomain ? `${regLocal}@${regDomain}` : ''
 
@@ -75,7 +84,7 @@ export function AuthPage() {
     setRememberMe(rememberMe)
     const result = await login(loginEmail, loginPw)
     if (!result.ok) { setError(result.error || '로그인 실패'); return }
-    navigate('/')
+    goAfterAuth()
   }
 
   const checkEmailDuplicate = () => {
@@ -103,7 +112,7 @@ export function AuthPage() {
         return
       }
       toast('가입을 환영합니다! 은혜 가운데 교제하세요.')
-      navigate('/')
+      goAfterAuth()
     } catch (e) {
       setError(e instanceof Error ? e.message : '가입에 실패했습니다.')
     }
