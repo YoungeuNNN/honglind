@@ -1,28 +1,28 @@
 export const CATEGORIES = [
-  '자유', '사역고민', '교회생활', '신학교',
-  '신학토론', '설교나눔', '기도요청', '연봉', '청빙',
+  '자유', '사역고민', '신학토론', '설교준비',
+  '기도요청', '연봉', '사역장터',
+  // '청빙' — 커뮤니티가 모일 때까지 숨김 (라벨/이모지/필드는 유지, 목록에 다시 추가하면 부활)
 ] as const
 
 export const CATEGORY_LABELS: Record<string, string> = {
   자유:     '자유게시판',
   사역고민: '사역 고민',
-  교회생활: '교회생활',
-  신학교:   '신학교생활',
   신학토론: '신학 토론',
-  설교나눔: '설교 나눔',
+  설교준비: '설교 준비',
   기도요청: '기도요청',
   연봉:     '사례비/처우',
   청빙:     '청빙 공고',
+  사역장터: '사역장터',
 }
 
-export const DAILY_VERSES = [
-  { text: '여호와를 의지하는 자는 시온 산이 요동치 아니하고 영원히 있음 같도다', ref: '시편 125:1' },
-  { text: '두세 사람이 내 이름으로 모인 곳에 나도 그들 중에 있느니라', ref: '마태복음 18:20' },
-  { text: '내가 너를 강하게 하리라 참 내가 너를 도와주리라', ref: '이사야 41:10' },
-  { text: '항상 기뻐하라 쉬지 말고 기도하라 범사에 감사하라', ref: '데살로니가전서 5:16-18' },
-  { text: '네 시작은 미약하였으나 네 나중은 심히 창대하리라', ref: '욥기 8:7' },
-  { text: '나의 은혜가 네게 족하도다 이는 내 능력이 약한 데서 온전하여짐이라', ref: '고린도후서 12:9' },
-]
+// 사역장터 거래유형 / 거래상태 라벨
+export const MARKET_TYPES = ['판매', '무료나눔', '제작의뢰', '구매요청'] as const
+
+export const MARKET_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  available: { label: '거래중',   color: 'var(--success)' },
+  reserved:  { label: '예약중',   color: 'var(--primary)' },
+  done:      { label: '거래완료', color: 'var(--subtext)' },
+}
 
 export const REPORT_REASONS = [
   { code: 'spam',          label: '스팸/광고' },
@@ -33,16 +33,30 @@ export const REPORT_REASONS = [
   { code: 'other',         label: '기타' },
 ]
 
+// 가입(학생증) 승인 상태 라벨/색상
+export const MEMBERSHIP_LABELS: Record<string, { label: string; color: string }> = {
+  pending:  { label: '가입 승인 대기', color: 'var(--primary)' },
+  approved: { label: '가입 승인됨',   color: 'var(--success)' },
+  rejected: { label: '가입 거절',     color: 'var(--danger)' },
+}
+
+// 신학대학원 재학생(재학증명서) 인증 상태 라벨/색상
+export const VERIFICATION_LABELS: Record<string, { label: string; color: string }> = {
+  unverified: { label: '미인증',   color: 'var(--subtext)' },
+  pending:    { label: '인증 검토중', color: 'var(--primary)' },
+  verified:   { label: '인증 완료', color: 'var(--success)' },
+  rejected:   { label: '인증 거절', color: 'var(--danger)' },
+}
+
 export const CATEGORY_EMOJIS: Record<string, string> = {
   all:      '\u{1F3E0}',
   인기:     '\u{1F525}',
   자유:     '\u{1F4AC}',
   사역고민: '\u{1F64F}',
-  교회생활: '\u{26EA}',
-  신학교:   '\u{1F393}',
   신학토론: '\u{1F4D6}',
-  설교나눔: '\u{26F3}',
+  설교준비: '\u{26F3}',
   기도요청: '\u{1F54A}',
   연봉:     '\u{1F4B0}',
   청빙:     '\u{1F4E3}',
+  사역장터: '\u{1F6D2}',
 }

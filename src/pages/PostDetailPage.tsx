@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { useToastStore } from '@/stores/toastStore'
 import * as DS from '@/api/dataService'
 import { timeAgo } from '@/utils/helpers'
+import { MARKET_STATUS_LABELS } from '@/utils/constants'
 import { HeartIcon, BackIcon, FlagIcon, ShareIcon, BookmarkIcon } from '@/components/ui/Icons'
 import type { Comment as CommentType, Post } from '@/types'
 
@@ -12,7 +13,7 @@ export function PostDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuthStore()
-  const { openReportModal } = useUIStore()
+  const { openReportModal, openVerifyPrompt } = useUIStore()
   const toast = useToastStore(s => s.show)
   const [, setTick] = useState(0)
   const rerender = () => setTick(t => t + 1)
@@ -34,6 +35,9 @@ export function PostDetailPage() {
   const isPR = post.category === '기도요청'
   const hasPrayed = user ? post.prayers?.includes(user.id) : false
   const isCB = post.category === '청빙' && post.cheongbing
+  const isMarket = post.category === '사역장터' && post.market
+  // 본문/댓글 등 '내용'은 학생증 승인 회원에게만
+  const canSeeContent = !!user && (user.membershipStatus === 'approved' || user.role === 'admin')
   const reported = user ? DS.hasReported(user.id, 'post', post.id) : false
   const bookmarked = user ? DS.isBookmarked(user.id, post.id) : false
   const authorLabel = isOwner ? '나' : (post.authorId === 'deleted' ? '탈퇴한 사용자' : '익명')
@@ -97,6 +101,7 @@ export function PostDetailPage() {
 
   const addComment = async () => {
     if (!user || !commentText.trim()) return
+    if (user.verificationStatus !== 'verified' && user.role !== 'admin') { openVerifyPrompt(); return }
     try {
       await DS.createComment({ postId: post.id, authorId: user.id, parentId: null, content: commentText.trim() })
       if (post.authorId !== 'deleted' && post.authorId !== user.id) {
@@ -117,6 +122,15 @@ export function PostDetailPage() {
     } catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
+  const setMarketStatus = async (status: 'available' | 'reserved' | 'done') => {
+    if (!user || !post.market) return
+    try {
+      await DS.updatePost(post.id, { market: { ...post.market, status } })
+      toast('거래 상태를 변경했습니다.')
+      rerender()
+    } catch (e) { toast(e instanceof Error ? e.message : '오류') }
+  }
+
   return (
     <>
       <div className="back-btn" onClick={() => navigate('/')}><BackIcon /> 목록으로</div>
@@ -132,7 +146,7 @@ export function PostDetailPage() {
           </div>
         </div>
 
-        {isCB && post.cheongbing && (
+        {canSeeContent && isCB && post.cheongbing && (
           <div className="cheongbing-fields" style={{ margin: '16px 0' }}>
             <h4>{'\u{1F4E3}'} 청빙 정보</h4>
             <table style={{ width: '100%', fontSize: 14, borderCollapse: 'collapse' }}>
@@ -148,7 +162,48 @@ export function PostDetailPage() {
           </div>
         )}
 
-        {post.sermonVerse && (
+        {canSeeContent && isMarket && post.market && (
+          <div className="cheongbing-fields" style={{ margin: '16px 0', background: '#FFF8E1', borderColor: '#FFE0B2' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <h4 style={{ color: '#E65100', margin: 0 }}>{'\u{1F6D2}'} 거래 정보</h4>
+              <span className="post-category" style={{ background: 'var(--bg)', color: (MARKET_STATUS_LABELS[post.market.status]?.color), fontWeight: 700 }}>
+                {MARKET_STATUS_LABELS[post.market.status]?.label}
+              </span>
+            </div>
+            <table style={{ width: '100%', fontSize: 14, borderCollapse: 'collapse' }}>
+              <tbody>
+                {[['거래 유형', post.market.type], ['가격', post.market.price], ['연락 방법', post.market.contact]].map(([label, val]) => (
+                  <tr key={label}><td style={{ padding: '6px 0', fontWeight: 600, width: 100, color: '#555' }}>{label}</td><td>{val || '-'}</td></tr>
+                ))}
+              </tbody>
+            </table>
+            {!!post.attachments.length && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 6 }}>첨부 자료</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  {post.attachments.map(a => (
+                    a.kind === 'image'
+                      ? <a key={a.path} href={DS.getMarketFileUrl(a.path)} target="_blank" rel="noopener noreferrer">
+                          <img src={DS.getMarketFileUrl(a.path)} alt={a.name} style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                        </a>
+                      : <a key={a.path} href={DS.getMarketFileUrl(a.path)} target="_blank" rel="noopener noreferrer" className="cheongbing-tag" style={{ textDecoration: 'none' }}>{'\u{1F4CE}'} {a.name}</a>
+                  ))}
+                </div>
+              </div>
+            )}
+            {isOwner && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                {(['available', 'reserved', 'done'] as const).map(s => (
+                  <button key={s} className={`btn btn-small ${post.market!.status === s ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setMarketStatus(s)}>
+                    {MARKET_STATUS_LABELS[s].label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {canSeeContent && post.sermonVerse && (
           <div style={{ background: 'linear-gradient(135deg,#4A148C,#7B1FA2)', borderRadius: 'var(--radius-md)', padding: '16px 20px', margin: '16px 0', color: '#fff' }}>
             <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>{'\u{1F4D6}'} 본문 말씀</div>
             <div style={{ fontSize: 16, fontWeight: 600 }}>{post.sermonVerse}</div>
@@ -161,11 +216,22 @@ export function PostDetailPage() {
           </div>
         )}
 
-        <div className="post-detail-body">{post.content}</div>
+        {canSeeContent ? (
+          <div className="post-detail-body">{post.content}</div>
+        ) : (
+          <div className="cheongbing-fields" style={{ margin: '16px 0', textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>{'\u{1F512}'}</div>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>이 글의 내용은 학생증 승인 후 볼 수 있습니다</div>
+            <div style={{ fontSize: 13, color: 'var(--subtext)', marginBottom: 10 }}>좋아요 {post.likes.length} · 댓글 {post.commentCount}</div>
+            <p style={{ fontSize: 13, color: 'var(--subtext)', marginBottom: 14, lineHeight: 1.6 }}>학생증 인증을 마치면 본문과 댓글을 모두 보실 수 있어요.</p>
+            <button className="btn btn-primary" onClick={() => navigate('/settings')}>학생증 인증하러 가기</button>
+          </div>
+        )}
 
         {/* Poll */}
-        {post.poll && <PollSection post={post} userId={user?.id} rerender={rerender} />}
+        {canSeeContent && post.poll && <PollSection post={post} userId={user?.id} rerender={rerender} />}
 
+        {canSeeContent && (
         <div className="post-detail-actions">
           <button className={`btn-like ${isLiked ? 'active' : ''}`} onClick={toggleLike}>
             <HeartIcon filled={isLiked} /> 좋아요 {post.likes.length}
@@ -202,8 +268,10 @@ export function PostDetailPage() {
             </div>
           )}
         </div>
+        )}
 
         {/* Comments */}
+        {canSeeContent && (
         <div className="comments-section">
           <div className="comments-title">댓글 <span>{allComments.length}</span></div>
           <div className="comment-input-area">
@@ -218,6 +286,7 @@ export function PostDetailPage() {
             ))}
           </div>
         </div>
+        )}
       </div>
     </>
   )
@@ -225,7 +294,7 @@ export function PostDetailPage() {
 
 function CommentItem({ comment: c, allComments, postAuthorId, postId, rerender }: { comment: CommentType; allComments: CommentType[]; postAuthorId: string; postId: string; rerender: () => void }) {
   const { user } = useAuthStore()
-  const { openReportModal } = useUIStore()
+  const { openReportModal, openVerifyPrompt } = useUIStore()
   const toast = useToastStore(s => s.show)
   const [showReply, setShowReply] = useState(false)
   const [replyText, setReplyText] = useState('')
@@ -259,6 +328,7 @@ function CommentItem({ comment: c, allComments, postAuthorId, postId, rerender }
 
   const addReply = async () => {
     if (!user || !replyText.trim()) return
+    if (user.verificationStatus !== 'verified' && user.role !== 'admin') { openVerifyPrompt(); return }
     try {
       await DS.createComment({ postId, authorId: user.id, parentId: c.id, content: replyText.trim() })
       if (c.authorId !== 'deleted' && c.authorId !== user.id) {

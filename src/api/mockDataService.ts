@@ -13,6 +13,9 @@ const mockUsers: User[] = [
     affiliation: '서울교회',
     role: 'user',
     banned: false,
+    membershipStatus: 'approved',
+    verificationStatus: 'verified',
+    verifiedAt: '2024-01-01T00:00:00Z',
     createdAt: '2024-01-01T00:00:00Z',
   },
   {
@@ -22,6 +25,9 @@ const mockUsers: User[] = [
     affiliation: '부산교회',
     role: 'admin',
     banned: false,
+    membershipStatus: 'approved',
+    verificationStatus: 'verified',
+    verifiedAt: '2024-01-01T00:00:00Z',
     createdAt: '2024-01-01T00:00:00Z',
   }
 ]
@@ -38,10 +44,13 @@ const mockPosts: Post[] = [
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: null,
     cheongbing: null,
+    market: null,
+    attachments: [],
     prayers: null,
     prayerAnswered: false,
     sermonVerse: null,
     poll: null,
+    commentCount: 0,
   }
 ]
 
@@ -127,10 +136,13 @@ export async function resendConfirmationEmail(_email: string): Promise<void> {
   // Mock 환경에서는 no-op
 }
 
-export async function signUp(email: string, _password: string, nickname: string): Promise<SignUpResult> {
-  if (!isDomainAllowed(email)) {
-    throw new Error('허용되지 않은 이메일 도메인입니다.')
-  }
+export interface SignUpParams {
+  email: string; password: string; nickname: string
+  membershipNote?: string; studentIdFile?: File
+}
+
+export async function signUp(params: SignUpParams): Promise<SignUpResult> {
+  const { email, nickname, membershipNote } = params
   const newUser: User = {
     id: `user${Date.now()}`,
     nickname,
@@ -138,11 +150,63 @@ export async function signUp(email: string, _password: string, nickname: string)
     affiliation: undefined,
     role: 'user',
     banned: false,
+    membershipStatus: 'pending',
+    membershipNote: membershipNote ?? null,
+    verificationStatus: 'unverified',
     createdAt: new Date().toISOString(),
   }
   mockUsers.push(newUser)
   _sessionUser = newUser
   return { user: newUser, requiresEmailConfirmation: false }
+}
+
+export async function uploadVerificationDoc(userId: string, kind: 'student-id' | 'enrollment', _file: File): Promise<string> {
+  return `${userId}/${kind}.jpg`
+}
+
+export async function getVerificationDocUrl(_path: string): Promise<string | null> {
+  return null
+}
+
+export async function submitVerification(note?: string, _enrollmentFile?: File): Promise<User | null> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  me.verificationStatus = 'pending'
+  me.verificationNote = note ?? null
+  return me
+}
+
+export async function setVerification(
+  userId: string,
+  status: 'verified' | 'rejected' | 'unverified',
+  note?: string,
+): Promise<User | null> {
+  const u = getUserById(userId)
+  if (!u) return null
+  u.verificationStatus = status
+  u.verificationNote = note ?? null
+  u.verifiedAt = status === 'verified' ? new Date().toISOString() : null
+  return u
+}
+
+export async function setMembership(
+  userId: string,
+  status: 'approved' | 'rejected' | 'pending',
+  note?: string,
+): Promise<User | null> {
+  const u = getUserById(userId)
+  if (!u) return null
+  u.membershipStatus = status
+  u.membershipNote = note ?? null
+  return u
+}
+
+export async function resubmitMembership(note?: string, _studentIdFile?: File): Promise<User | null> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  me.membershipStatus = 'pending'
+  me.membershipNote = note ?? null
+  return me
 }
 
 export async function signIn(email: string, _password: string): Promise<User> {
@@ -188,13 +252,24 @@ export async function createPost(data: Partial<Post>): Promise<Post> {
     createdAt: new Date().toISOString(),
     updatedAt: null,
     cheongbing: data.cheongbing || null,
+    market: data.market || null,
+    attachments: data.attachments || [],
     prayers: data.category === '기도요청' ? [] : null,
     prayerAnswered: false,
     sermonVerse: data.sermonVerse || null,
     poll: data.poll || null,
+    commentCount: 0,
   }
   mockPosts.unshift(newPost)
   return newPost
+}
+
+export async function uploadMarketFile(userId: string, file: File): Promise<string> {
+  return `${userId}/${file.name}`
+}
+
+export function getMarketFileUrl(path: string): string {
+  return path
 }
 
 export async function updatePost(id: string, updates: Partial<Post>): Promise<Post | null> {

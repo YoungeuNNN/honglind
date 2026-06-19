@@ -11,6 +11,8 @@ interface UIState {
   notifPanelOpen: boolean
   reportModal: ReportModalState
   loginPromptOpen: boolean
+  verifyPromptOpen: boolean
+  membershipPromptOpen: boolean
 
   toggleUserMenu: () => void
   closeUserMenu: () => void
@@ -20,6 +22,10 @@ interface UIState {
   closeReportModal: () => void
   openLoginPrompt: () => void
   closeLoginPrompt: () => void
+  openVerifyPrompt: () => void
+  closeVerifyPrompt: () => void
+  openMembershipPrompt: () => void
+  closeMembershipPrompt: () => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -27,6 +33,8 @@ export const useUIStore = create<UIState>((set) => ({
   notifPanelOpen: false,
   reportModal: { open: false, targetType: 'post', targetId: '' },
   loginPromptOpen: false,
+  verifyPromptOpen: false,
+  membershipPromptOpen: false,
 
   toggleUserMenu: () => set(s => ({ userMenuOpen: !s.userMenuOpen })),
   closeUserMenu: () => set({ userMenuOpen: false }),
@@ -36,4 +44,8 @@ export const useUIStore = create<UIState>((set) => ({
   closeReportModal: () => set(s => ({ reportModal: { ...s.reportModal, open: false } })),
   openLoginPrompt: () => set({ loginPromptOpen: true }),
   closeLoginPrompt: () => set({ loginPromptOpen: false }),
+  openVerifyPrompt: () => set({ verifyPromptOpen: true }),
+  closeVerifyPrompt: () => set({ verifyPromptOpen: false }),
+  openMembershipPrompt: () => set({ membershipPromptOpen: true }),
+  closeMembershipPrompt: () => set({ membershipPromptOpen: false }),
 }))

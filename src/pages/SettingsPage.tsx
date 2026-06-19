@@ -6,10 +6,11 @@ import * as DS from '@/api/dataService'
 import { supabase } from '@/api/supabase'
 import { BackIcon } from '@/components/ui/Icons'
 import { isPasswordValid, getPasswordRules, isValidEmail } from '@/utils/helpers'
+import { VERIFICATION_LABELS, MEMBERSHIP_LABELS } from '@/utils/constants'
 
 export function SettingsPage() {
   const navigate = useNavigate()
-  const { user, updateProfile, deleteAccount } = useAuthStore()
+  const { user, updateProfile, deleteAccount, refresh } = useAuthStore()
   const toast = useToastStore(s => s.show)
   const [editingNickname, setEditingNickname] = useState(false)
   const [nickname, setNickname] = useState(user?.nickname || '')
@@ -20,9 +21,45 @@ export function SettingsPage() {
   const [newPw, setNewPw] = useState('')
   const [newPwC, setNewPwC] = useState('')
   const [deletePw, setDeletePw] = useState('')
+  const [verifyNote, setVerifyNote] = useState('')
+  const [enrollFile, setEnrollFile] = useState<File | null>(null)
+  const [studentIdFile, setStudentIdFile] = useState<File | null>(null)
+  const [busy, setBusy] = useState(false)
   const [, setTick] = useState(0)
   if (!user) return null
   const fresh = DS.getUserById(user.id) || user
+  const mStatus = fresh.membershipStatus ?? 'pending'
+  const mLabel = MEMBERSHIP_LABELS[mStatus] ?? MEMBERSHIP_LABELS.pending
+  const approved = mStatus === 'approved' || fresh.role === 'admin'
+  const vStatus = fresh.verificationStatus ?? 'unverified'
+  const vLabel = VERIFICATION_LABELS[vStatus] ?? VERIFICATION_LABELS.unverified
+  const canSubmitVerify = vStatus === 'unverified' || vStatus === 'rejected'
+
+  // 재학증명서(쓰기) 인증 신청
+  const submitVerify = async () => {
+    if (!enrollFile) { toast('재학증명서 이미지를 첨부해주세요.'); return }
+    setBusy(true)
+    try {
+      await DS.submitVerification(verifyNote.trim() || undefined, enrollFile)
+      await refresh()
+      toast('인증 신청이 접수되었습니다. 관리자 검토 후 승인됩니다.')
+      setVerifyNote(''); setEnrollFile(null)
+    } catch (e) { toast(e instanceof Error ? e.message : '신청에 실패했습니다.') }
+    finally { setBusy(false) }
+  }
+
+  // 가입(학생증) 재신청 — 거절된 경우
+  const resubmitMembership = async () => {
+    if (!studentIdFile) { toast('학생증 이미지를 첨부해주세요.'); return }
+    setBusy(true)
+    try {
+      await DS.resubmitMembership(undefined, studentIdFile)
+      await refresh()
+      toast('가입 재신청이 접수되었습니다. 관리자 검토를 기다려주세요.')
+      setStudentIdFile(null)
+    } catch (e) { toast(e instanceof Error ? e.message : '재신청에 실패했습니다.') }
+    finally { setBusy(false) }
+  }
   const blockedIds = DS.getBlockedIds(user.id)
   const pwRules = getPasswordRules(newPw)
 
@@ -93,8 +130,82 @@ export function SettingsPage() {
           </div>
         )}
         <div className="settings-row"><label>이메일</label><span className="val">{fresh.email}</span></div>
-        <div className="settings-row"><label>가입일</label><span className="val">{new Date(fresh.createdAt).toLocaleDateString('ko-KR')}</span></div>
+        <div className="settings-row"><label>가입(학생증)</label><span className="val" style={{ color: mLabel.color, fontWeight: 600 }}>{mLabel.label}</span></div>
+        <div className="settings-row"><label>재학생 인증</label><span className="val" style={{ color: vLabel.color, fontWeight: 600 }}>{vLabel.label}</span></div>
       </div>
+
+      {/* 1단계: 가입(학생증) 상태 */}
+      <div className="settings-section fade-in">
+        <h3>가입(학생증) 인증</h3>
+        {mStatus === 'approved' && (
+          <div className="email-check-msg ok">{'✓'} 학생증 승인이 완료되어 글을 읽을 수 있습니다.</div>
+        )}
+        {mStatus === 'pending' && (
+          <div className="email-check-msg" style={{ color: 'var(--primary)' }}>
+            학생증을 확인 중입니다. 승인되면 글 본문을 보실 수 있어요. 지금은 글 제목만 볼 수 있습니다.
+          </div>
+        )}
+        {mStatus === 'rejected' && (
+          <>
+            <div className="email-check-msg err">
+              학생증 인증이 거절되었습니다. 다시 제출해 재신청해주세요.
+              {fresh.membershipNote && <div style={{ marginTop: 6 }}>사유: {fresh.membershipNote}</div>}
+            </div>
+            <div className="form-group" style={{ marginTop: 12 }}>
+              <label>학생증 다시 첨부</label>
+              <input type="file" className="form-input" accept="image/*" onChange={e => setStudentIdFile(e.target.files?.[0] ?? null)} />
+              {studentIdFile && <div className="email-check-msg ok">{'✓'} {studentIdFile.name}</div>}
+              <button className="btn btn-primary btn-small" style={{ marginTop: 10 }} onClick={resubmitMembership} disabled={busy}>
+                {busy ? '제출 중...' : '재신청하기'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 2단계: 재학증명서(쓰기) 인증 — 학생증 승인 후에만 노출 */}
+      {approved && (
+      <div className="settings-section fade-in">
+        <h3>신학대학원 재학생 인증 (글쓰기)</h3>
+        <p style={{ fontSize: 13, color: 'var(--subtext)', marginBottom: 12, lineHeight: 1.6 }}>
+          글·댓글·쪽지를 작성하려면 재학증명서 인증이 필요합니다.<br/>
+          <strong>재학증명서</strong>에 표기된 <strong>학위과정(예: 신학대학원 M.Div / 목회학석사과정)</strong>이 확인되어야 승인됩니다.
+        </p>
+        {vStatus === 'verified' && (
+          <div className="email-check-msg ok">{'✓'} 재학생 인증이 완료되었습니다. 글쓰기·댓글·쪽지를 이용하실 수 있습니다.</div>
+        )}
+        {vStatus === 'pending' && (
+          <div className="email-check-msg" style={{ color: 'var(--primary)' }}>
+            인증을 검토 중입니다. 승인되면 알려드릴게요.
+            {fresh.verificationNote && <div style={{ marginTop: 6, color: 'var(--subtext)' }}>제출 메모: {fresh.verificationNote}</div>}
+          </div>
+        )}
+        {vStatus === 'rejected' && (
+          <div className="email-check-msg err">
+            인증이 거절되었습니다. 재학증명서를 다시 확인하여 재신청해주세요.
+            {fresh.verificationNote && <div style={{ marginTop: 6 }}>사유: {fresh.verificationNote}</div>}
+          </div>
+        )}
+        {canSubmitVerify && (
+          <div className="form-group" style={{ marginTop: 12 }}>
+            <label>재학증명서 첨부 <span style={{ color: 'var(--danger)' }}>*</span></label>
+            <input type="file" className="form-input" accept="image/*,application/pdf" onChange={e => setEnrollFile(e.target.files?.[0] ?? null)} />
+            {enrollFile && <div className="email-check-msg ok">{'✓'} {enrollFile.name}</div>}
+            <label style={{ marginTop: 10, display: 'block' }}>참고 메모 (선택)</label>
+            <textarea
+              className="form-input"
+              value={verifyNote}
+              onChange={e => setVerifyNote(e.target.value)}
+              placeholder="예) OO신학대학원 목회학석사(M.Div) 2학기 재학 중 (문서확인번호: 1234-5678)"
+              style={{ minHeight: 70, resize: 'vertical' }}
+            />
+            <button className="btn btn-primary btn-small" style={{ marginTop: 10 }} onClick={submitVerify} disabled={busy}>
+              {busy ? '제출 중...' : '인증 신청하기'}
+            </button>
+          </div>
+        )}
+      </div>
+      )}
       <div className="settings-section fade-in">
         <h3>이메일 변경</h3>
         <div className="form-group"><label>새 이메일</label>

@@ -4,7 +4,6 @@ import { useAuthStore } from '@/stores/authStore'
 import { useToastStore } from '@/stores/toastStore'
 import { isPasswordValid, getPasswordRules, isValidEmail } from '@/utils/helpers'
 import * as DS from '@/api/dataService'
-import type { AllowedDomain } from '@/types'
 import { supabase, setRememberMe, getRememberMe } from '@/api/supabase'
 
 export function AuthPage() {
@@ -24,17 +23,14 @@ export function AuthPage() {
   const [rememberMe, setRememberMeState] = useState<boolean>(getRememberMe())
 
   // register state
-  const [regLocal, setRegLocal] = useState('')
-  const [regDomain, setRegDomain] = useState('')
+  const [regEmail, setRegEmail] = useState('')
   const [regPw, setRegPw] = useState('')
   const [regPwConfirm, setRegPwConfirm] = useState('')
   const [regNickname, setRegNickname] = useState('')
+  const [regStudentIdFile, setRegStudentIdFile] = useState<File | null>(null)
+  const [regMembershipNote, setRegMembershipNote] = useState('')
   const [emailChecked, setEmailChecked] = useState(false)
   const [emailMsg, setEmailMsg] = useState<{ text: string; ok: boolean } | null>(null)
-
-  // allowed domains
-  const [allowedDomains, setAllowedDomains] = useState<AllowedDomain[]>(DS.getAllowedDomains())
-  const [domainsLoading, setDomainsLoading] = useState(false)
 
   // verify-sent state
   const [sentToEmail, setSentToEmail] = useState('')
@@ -46,37 +42,12 @@ export function AuthPage() {
   const [resetPw, setResetPw] = useState('')
   const [resetPwConfirm, setResetPwConfirm] = useState('')
 
-  useEffect(() => {
-    // 가입 폼이 열렸을 때 캐시 비어있으면 anon 으로 fetch
-    if (mode !== 'register') return
-    if (allowedDomains.length > 0) return
-    setDomainsLoading(true)
-    DS.fetchAllowedDomains()
-      .then(list => {
-        setAllowedDomains(list)
-        if (list.length === 1 && !regDomain) setRegDomain(list[0].domain)
-      })
-      .catch(err => {
-        console.error('allowed domains fetch failed:', err)
-      })
-      .finally(() => setDomainsLoading(false))
-  }, [mode, allowedDomains.length, regDomain])
-
-  // 도메인이 1개뿐이면 자동 선택
-  useEffect(() => {
-    if (mode === 'register' && allowedDomains.length === 1 && !regDomain) {
-      setRegDomain(allowedDomains[0].domain)
-    }
-  }, [mode, allowedDomains, regDomain])
-
   // 로그인 상태면 원래 가려던 곳(또는 홈)으로
   useEffect(() => {
     if (user) goAfterAuth()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
   if (user) return null
-
-  const regEmail = regLocal && regDomain ? `${regLocal}@${regDomain}` : ''
 
   const handleLogin = async () => {
     setError('')
@@ -88,7 +59,7 @@ export function AuthPage() {
   }
 
   const checkEmailDuplicate = () => {
-    if (!regLocal || !regDomain) { setEmailMsg({ text: '이메일을 입력하세요.', ok: false }); setEmailChecked(false); return }
+    if (!regEmail.trim()) { setEmailMsg({ text: '이메일을 입력하세요.', ok: false }); setEmailChecked(false); return }
     if (!isValidEmail(regEmail)) { setEmailMsg({ text: '올바른 이메일 형식이 아닙니다.', ok: false }); setEmailChecked(false); return }
     if (DS.findUserByEmail(regEmail)) { setEmailMsg({ text: '이미 사용 중인 이메일입니다.', ok: false }); setEmailChecked(false); return }
     setEmailMsg({ text: '✓ 사용 가능한 이메일입니다.', ok: true })
@@ -97,21 +68,29 @@ export function AuthPage() {
 
   const handleRegister = async () => {
     setError('')
-    if (!regDomain) { setError('이메일 도메인을 선택하세요.'); return }
+    if (!isValidEmail(regEmail)) { setError('올바른 이메일을 입력하세요.'); return }
     if (!emailChecked) { setError('이메일 중복확인을 해주세요.'); return }
     if (!isPasswordValid(regPw)) { setError('비밀번호 조건을 모두 충족해야 합니다.'); return }
     if (regPw !== regPwConfirm) { setError('비밀번호가 일치하지 않습니다.'); return }
     if (!regNickname.trim()) { setError('닉네임을 입력하세요.'); return }
+    if (!regStudentIdFile) { setError('학생증 이미지를 첨부하세요.'); return }
     setRememberMe(true)
     try {
-      const result = await register({ nickname: regNickname.trim(), email: regEmail, password: regPw })
+      const result = await register({
+        nickname: regNickname.trim(),
+        email: regEmail,
+        password: regPw,
+        membershipNote: regMembershipNote.trim() || undefined,
+        studentIdFile: regStudentIdFile,
+      })
       if (result.requiresEmailConfirmation) {
         setSentToEmail(regEmail)
         setMode('verify-sent')
         toast('인증 메일을 발송했습니다. 메일함을 확인하세요.')
         return
       }
-      toast('가입을 환영합니다! 은혜 가운데 교제하세요.')
+      // 가입 = 신청. 학생증 승인 전까지는 제목만 열람 가능. 홈(제목 목록 + 대기 안내)으로 이동.
+      toast('가입 신청이 접수되었습니다. 학생증 확인 후 승인되면 글을 볼 수 있어요.')
       goAfterAuth()
     } catch (e) {
       setError(e instanceof Error ? e.message : '가입에 실패했습니다.')
@@ -153,7 +132,7 @@ export function AuthPage() {
   }
 
   const pwRules = getPasswordRules(mode === 'register' ? regPw : resetPw)
-  const canRegister = !!regDomain && emailChecked && isPasswordValid(regPw) && regPw === regPwConfirm && regNickname.trim().length > 0
+  const canRegister = emailChecked && isPasswordValid(regPw) && regPw === regPwConfirm && regNickname.trim().length > 0 && !!regStudentIdFile
   const canReset = isPasswordValid(resetPw) && resetPw === resetPwConfirm
   const pwMatch = mode === 'register' ? regPwConfirm && regPw === regPwConfirm : resetPwConfirm && resetPw === resetPwConfirm
   const pwMismatch = mode === 'register' ? regPwConfirm && regPw !== regPwConfirm : resetPwConfirm && resetPw !== resetPwConfirm
@@ -173,9 +152,6 @@ export function AuthPage() {
           <span className="logo-text"><span>홍</span>라인드</span>
         </div>
         <p className="auth-subtitle">{subtitle}</p>
-        <p className="auth-verse">
-          "두세 사람이 내 이름으로 모인 곳에 나도 그들 중에 있느니라"<br/>- 마태복음 18:20
-        </p>
 
         {error && <div className="auth-error">{error}</div>}
 
@@ -209,37 +185,20 @@ export function AuthPage() {
         {mode === 'register' && (
           <form onSubmit={e => { e.preventDefault(); handleRegister() }}>
             <div className="form-group">
-              <label>이메일 (아이디)</label>
+              <label>이메일</label>
               <div className="form-row">
                 <input
-                  type="text"
+                  type="email"
                   className="form-input"
-                  placeholder="아이디"
-                  value={regLocal}
-                  onChange={e => { setRegLocal(e.target.value); setEmailChecked(false); setEmailMsg(null) }}
+                  placeholder="example@email.com"
+                  value={regEmail}
+                  onChange={e => { setRegEmail(e.target.value); setEmailChecked(false); setEmailMsg(null) }}
                   style={{ flex: 1 }}
                 />
-                <span style={{ alignSelf: 'center', color: 'var(--subtext)', fontSize: 13 }}>@</span>
-                <select
-                  className="form-input"
-                  value={regDomain}
-                  onChange={e => { setRegDomain(e.target.value); setEmailChecked(false); setEmailMsg(null) }}
-                  disabled={domainsLoading || allowedDomains.length === 0}
-                  style={{ flex: 1.2 }}
-                >
-                  {domainsLoading && <option value="">불러오는 중...</option>}
-                  {!domainsLoading && allowedDomains.length === 0 && <option value="">사용 가능한 도메인 없음</option>}
-                  {!domainsLoading && allowedDomains.length > 0 && !regDomain && <option value="">도메인 선택</option>}
-                  {allowedDomains.map(d => (
-                    <option key={d.id} value={d.domain}>
-                      {d.domain}
-                    </option>
-                  ))}
-                </select>
                 <button type="button" className="btn btn-secondary" onClick={checkEmailDuplicate} style={{ whiteSpace: 'nowrap' }}>중복확인</button>
               </div>
               <div style={{ fontSize: 12, color: 'var(--subtext)', marginTop: 4 }}>
-                지정된 학교/기관 도메인의 이메일로만 가입할 수 있습니다.
+                사용하시는 이메일로 가입할 수 있습니다. 신학대학원 재학 여부는 가입 후 학생증 확인으로 인증됩니다.
               </div>
               {emailMsg && <div className={`email-check-msg ${emailMsg.ok ? 'ok' : 'err'}`}>{emailMsg.text}</div>}
             </div>
@@ -266,7 +225,26 @@ export function AuthPage() {
               <input type="text" className="form-input" placeholder="커뮤니티에서 사용할 닉네임" maxLength={20}
                 value={regNickname} onChange={e => setRegNickname(e.target.value)} />
             </div>
-            <button type="submit" className="auth-btn" disabled={!canRegister}>가입하기</button>
+            <div className="form-group">
+              <label>학생증 인증 <span style={{ color: 'var(--danger)' }}>*</span></label>
+              <input
+                type="file"
+                className="form-input"
+                accept="image/*"
+                onChange={e => setRegStudentIdFile(e.target.files?.[0] ?? null)}
+              />
+              <div style={{ fontSize: 12, color: 'var(--subtext)', marginTop: 4, lineHeight: 1.5 }}>
+                학생증 사진을 첨부해주세요. 관리자가 확인 후 가입을 승인하며, 승인 전에는 글 제목만 볼 수 있습니다.<br/>
+                제출하신 학생증은 인증 용도로만 사용되며 안전하게 보관됩니다.
+              </div>
+              {regStudentIdFile && <div className="email-check-msg ok">{'✓'} {regStudentIdFile.name}</div>}
+            </div>
+            <div className="form-group">
+              <label>인증 참고 메모 (선택)</label>
+              <input type="text" className="form-input" placeholder="예: OO신학대학원 재학 중 / 학번 등"
+                value={regMembershipNote} onChange={e => setRegMembershipNote(e.target.value)} />
+            </div>
+            <button type="submit" className="auth-btn" disabled={!canRegister}>가입 신청하기</button>
             <div className="auth-switch">이미 계정이 있으신가요? <a onClick={() => { setMode('login'); setError('') }}>로그인</a></div>
           </form>
         )}

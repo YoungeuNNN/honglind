@@ -1,20 +1,22 @@
 import { useNavigate } from 'react-router-dom'
 import { HomeIcon, BriefcaseIcon, PlusIcon, CircleIcon, UserIcon } from '@/components/ui/Icons'
 import { useAuthAction } from '@/hooks/useAuthAction'
+import { useVerifiedAction } from '@/hooks/useVerifiedAction'
 
 export function MobileNav() {
   const navigate = useNavigate()
   const guard = useAuthAction()
+  const verified = useVerifiedAction()
 
   return (
     <div className="mobile-nav">
       <div className="mobile-nav-item active" onClick={() => navigate('/')}>
         <HomeIcon />홈
       </div>
-      <div className="mobile-nav-item" onClick={() => navigate('/?category=청빙')}>
-        <BriefcaseIcon />청빙
+      <div className="mobile-nav-item" onClick={() => navigate('/?category=사역장터')}>
+        <BriefcaseIcon />장터
       </div>
-      <div className="mobile-nav-item" onClick={guard(() => navigate('/write'))} style={{ color: 'var(--primary)' }}>
+      <div className="mobile-nav-item" onClick={verified(() => navigate('/write'))} style={{ color: 'var(--primary)' }}>
         <PlusIcon size={20} />글쓰기
       </div>
       <div className="mobile-nav-item" onClick={() => navigate('/?category=기도요청')}>

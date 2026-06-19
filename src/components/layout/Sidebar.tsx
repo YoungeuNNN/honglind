@@ -9,16 +9,13 @@ const SIDEBAR_ITEMS = [
   { section: '게시판', items: [
     { category: '자유', label: '자유게시판', emoji: '\u{1F4AC}' },
     { category: '사역고민', label: '사역 고민', emoji: '\u{1F64F}' },
-    { category: '교회생활', label: '교회생활', emoji: '\u{26EA}' },
-    { category: '신학교', label: '신학교생활', emoji: '\u{1F393}' },
     { category: '신학토론', label: '신학 토론', emoji: '\u{1F4D6}' },
-    { category: '설교나눔', label: '설교 나눔', emoji: '\u{26F3}' },
+    { category: '설교준비', label: '설교 준비', emoji: '\u{26F3}' },
     { category: '기도요청', label: '기도요청', emoji: '\u{1F54A}' },
     { category: '연봉', label: '사례비/처우', emoji: '\u{1F4B0}' },
+    { category: '사역장터', label: '사역장터', emoji: '\u{1F6D2}' },
   ]},
-  { section: '청빙', items: [
-    { category: '청빙', label: '청빙 공고', emoji: '\u{1F4E3}', tag: 'NEW' },
-  ]},
+  // 청빙 게시판은 커뮤니티 성장 후 오픈 (숨김)
 ]
 
 export function Sidebar() {

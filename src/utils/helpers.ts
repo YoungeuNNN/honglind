@@ -1,4 +1,3 @@
-import { DAILY_VERSES } from './constants'
 
 /** 고유 ID 생성 */
 export function uuid(): string {
@@ -22,12 +21,6 @@ export function timeAgo(dateStr: string): string {
   const days = Math.floor(hours / 24)
   if (days < 30) return `${days}일 전`
   return new Date(dateStr).toLocaleDateString('ko-KR')
-}
-
-/** 오늘의 말씀 (일별 로테이션) */
-export function getDailyVerse() {
-  const dayIndex = Math.floor(Date.now() / 86400000)
-  return DAILY_VERSES[dayIndex % DAILY_VERSES.length]
 }
 
 /** 비밀번호 유효성 검사 */

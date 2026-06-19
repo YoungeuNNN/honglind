@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
+import { useUIStore } from '@/stores/uiStore'
 import * as DS from '@/api/dataService'
 import { timeAgo } from '@/utils/helpers'
 import { BackIcon } from '@/components/ui/Icons'
@@ -9,6 +10,7 @@ export function DMThreadPage() {
   const { userId: otherUserId } = useParams<{ userId: string }>()
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const openVerifyPrompt = useUIStore(s => s.openVerifyPrompt)
   const [msgText, setMsgText] = useState('')
   const [, setTick] = useState(0)
   const threadRef = useRef<HTMLDivElement>(null)
@@ -23,6 +25,7 @@ export function DMThreadPage() {
   const otherName = other ? other.nickname : '탈퇴한 사용자'
   const send = async () => {
     if (!msgText.trim()) return
+    if (user.verificationStatus !== 'verified' && user.role !== 'admin') { openVerifyPrompt(); return }
     try {
       await DS.createMessage({ senderId: user.id, receiverId: otherUserId, content: msgText.trim(), read: false })
       setMsgText(''); setTick(t => t + 1)

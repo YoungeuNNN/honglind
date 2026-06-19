@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { AuthGuard } from '@/guards/AuthGuard'
+import { MembershipGuard } from '@/guards/MembershipGuard'
 import { AdminGuard } from '@/guards/AdminGuard'
 import { Toast } from '@/components/ui/Toast'
 import { AuthPage } from '@/pages/AuthPage'
@@ -61,14 +62,16 @@ export default function App() {
 
             {/* 인증 필요 — AppLayout 안에 렌더링 */}
             <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
+              {/* 글 상세: 로그인하면 열람 가능, 본문은 승인 회원에게만 (페이지 내부에서 게이트) */}
               <Route path="/post/:id" element={<PostDetailPage />} />
-              <Route path="/write" element={<WritePage />} />
-              <Route path="/write/:id" element={<WritePage />} />
-              <Route path="/my-posts" element={<MyPostsPage />} />
-              <Route path="/bookmarks" element={<BookmarksPage />} />
+              <Route path="/write" element={<MembershipGuard><WritePage /></MembershipGuard>} />
+              <Route path="/write/:id" element={<MembershipGuard><WritePage /></MembershipGuard>} />
+              <Route path="/my-posts" element={<MembershipGuard><MyPostsPage /></MembershipGuard>} />
+              <Route path="/bookmarks" element={<MembershipGuard><BookmarksPage /></MembershipGuard>} />
+              <Route path="/dm" element={<MembershipGuard><DMListPage /></MembershipGuard>} />
+              <Route path="/dm/:userId" element={<MembershipGuard><DMThreadPage /></MembershipGuard>} />
+              {/* 설정은 미승인 회원도 접근(신청 상태 확인/재신청) */}
               <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/dm" element={<DMListPage />} />
-              <Route path="/dm/:userId" element={<DMThreadPage />} />
               <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />
             </Route>
 

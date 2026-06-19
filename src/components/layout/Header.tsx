@@ -2,14 +2,14 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { useUIStore } from '@/stores/uiStore'
-import { useAuthAction } from '@/hooks/useAuthAction'
+import { useVerifiedAction } from '@/hooks/useVerifiedAction'
 import { SearchIcon, PlusIcon, DocumentIcon, BookmarkIcon, MessageIcon, SettingsIcon, ShieldIcon, LogoutIcon } from '@/components/ui/Icons'
 import { NotificationPanel } from '@/components/notification/NotificationPanel'
 
 export function Header() {
   const navigate = useNavigate()
   const location = useLocation()
-  const guard = useAuthAction()
+  const guard = useVerifiedAction()
   const { user, logout } = useAuthStore()
   const { userMenuOpen, toggleUserMenu, closeUserMenu } = useUIStore()
   const [searchQuery, setSearchQuery] = useState('')
@@ -59,9 +59,11 @@ export function Header() {
       </div>
       <div className="header-right">
         {showUserInfo && <NotificationPanel />}
-        <button className="btn btn-primary btn-small" onClick={guard(() => navigate('/write'))} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <PlusIcon /> 글쓰기
-        </button>
+        {!isMain && (
+          <button className="btn btn-primary btn-small" onClick={guard(() => navigate('/write'))} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <PlusIcon /> 글쓰기
+          </button>
+        )}
         {showUserInfo ? (
           <div className="user-menu" ref={menuRef}>
             <div className="user-avatar" onClick={toggleUserMenu}>{user.nickname[0]}</div>

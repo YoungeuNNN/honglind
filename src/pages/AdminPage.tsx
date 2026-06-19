@@ -3,11 +3,23 @@ import { useAuthStore } from '@/stores/authStore'
 import { useToastStore } from '@/stores/toastStore'
 import * as DS from '@/api/dataService'
 import { timeAgo } from '@/utils/helpers'
+import { VERIFICATION_LABELS, MEMBERSHIP_LABELS } from '@/utils/constants'
 
 export function AdminPage() {
   const { user } = useAuthStore()
   const toast = useToastStore(s => s.show)
-  const [tab, setTab] = useState<'reports'|'users'|'announce'|'domains'>('reports')
+  const [tab, setTab] = useState<'reports'|'membership'|'verify'|'users'|'announce'|'domains'>('reports')
+  const [rejectingId, setRejectingId] = useState<string | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [mRejectingId, setMRejectingId] = useState<string | null>(null)
+  const [mRejectReason, setMRejectReason] = useState('')
+
+  const viewDoc = async (path?: string | null) => {
+    if (!path) { toast('첨부된 서류가 없습니다.'); return }
+    const url = await DS.getVerificationDocUrl(path)
+    if (url) window.open(url, '_blank', 'noopener')
+    else toast('서류를 불러오지 못했습니다.')
+  }
   const [, setTick] = useState(0)
   const rerender = () => setTick(t => t + 1)
   const [annTitle, setAnnTitle] = useState('')
@@ -21,6 +33,8 @@ export function AdminPage() {
   const announcements = DS.getAnnouncements()
   const allowedDomains = DS.getAllowedDomains()
   const pendingReports = reports.filter(r => r.status === 'pending')
+  const pendingMembership = users.filter(u => u.membershipStatus === 'pending')
+  const pendingVerify = users.filter(u => u.verificationStatus === 'pending')
   const reasonLabels: Record<string,string> = {spam:'스팸',abuse:'욕설',false_info:'허위정보',privacy:'개인정보',inappropriate:'부적절',other:'기타'}
   return (
     <>
@@ -29,10 +43,14 @@ export function AdminPage() {
         <div className="admin-stat-item"><div className="admin-stat-num">{users.length}</div><div className="admin-stat-label">사용자</div></div>
         <div className="admin-stat-item"><div className="admin-stat-num">{posts.length}</div><div className="admin-stat-label">게시글</div></div>
         <div className="admin-stat-item"><div className="admin-stat-num">{pendingReports.length}</div><div className="admin-stat-label">미처리 신고</div></div>
+        <div className="admin-stat-item"><div className="admin-stat-num">{pendingMembership.length}</div><div className="admin-stat-label">가입 대기</div></div>
+        <div className="admin-stat-item"><div className="admin-stat-num">{pendingVerify.length}</div><div className="admin-stat-label">인증 대기</div></div>
         <div className="admin-stat-item"><div className="admin-stat-num">{announcements.length}</div><div className="admin-stat-label">공지</div></div>
       </div>
       <div className="admin-tabs">
         <button className={`admin-tab ${tab==='reports'?'active':''}`} onClick={()=>setTab('reports')}>신고 관리</button>
+        <button className={`admin-tab ${tab==='membership'?'active':''}`} onClick={()=>setTab('membership')}>가입 승인{pendingMembership.length>0?` (${pendingMembership.length})`:''}</button>
+        <button className={`admin-tab ${tab==='verify'?'active':''}`} onClick={()=>setTab('verify')}>재학생 인증{pendingVerify.length>0?` (${pendingVerify.length})`:''}</button>
         <button className={`admin-tab ${tab==='users'?'active':''}`} onClick={()=>setTab('users')}>사용자 관리</button>
         <button className={`admin-tab ${tab==='announce'?'active':''}`} onClick={()=>setTab('announce')}>공지사항</button>
         <button className={`admin-tab ${tab==='domains'?'active':''}`} onClick={()=>setTab('domains')}>허용 도메인</button>
@@ -52,11 +70,68 @@ export function AdminPage() {
           </div>
         ))
       )}
+      {tab==='membership' && (!pendingMembership.length ? <p style={{color:'var(--subtext)',padding:'20px 0'}}>가입 승인 대기 중인 신청이 없습니다.</p> :
+        pendingMembership.map(u=>(
+          <div key={u.id} className="admin-card fade-in">
+            <div className="admin-card-body">
+              <div className="value">{u.nickname} <span style={{color:'var(--subtext)',fontSize:12}}>{u.email}</span></div>
+              {u.membershipNote && <div className="value" style={{whiteSpace:'pre-wrap',fontSize:13,marginTop:4}}>메모: {u.membershipNote}</div>}
+              <div className="label" style={{marginTop:4}}>신청일: {new Date(u.createdAt).toLocaleDateString('ko-KR')}</div>
+              <button className="btn btn-text btn-small" style={{marginTop:4,padding:0}} onClick={()=>viewDoc(u.studentIdDoc)}>🪪 학생증 보기</button>
+              {mRejectingId===u.id && (
+                <div className="form-group" style={{marginTop:8}}>
+                  <input type="text" className="form-input" value={mRejectReason} onChange={e=>setMRejectReason(e.target.value)} placeholder="거절 사유 (신청자에게 표시됩니다)"/>
+                </div>
+              )}
+            </div>
+            <div className="admin-card-actions">
+              <button className="btn btn-primary btn-small" onClick={async ()=>{await DS.setMembership(u.id,'approved');toast(`${u.nickname} 님의 가입을 승인했습니다.`);setMRejectingId(null);rerender()}}>승인</button>
+              {mRejectingId===u.id ? (
+                <>
+                  <button className="btn btn-danger-solid btn-small" onClick={async ()=>{await DS.setMembership(u.id,'rejected',mRejectReason.trim()||'학생증이 확인되지 않았습니다.');toast('가입을 거절했습니다.');setMRejectingId(null);setMRejectReason('');rerender()}}>거절 확정</button>
+                  <button className="btn btn-secondary btn-small" onClick={()=>{setMRejectingId(null);setMRejectReason('')}}>취소</button>
+                </>
+              ) : (
+                <button className="btn btn-danger btn-small" onClick={()=>{setMRejectingId(u.id);setMRejectReason('')}}>거절</button>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+      {tab==='verify' && (!pendingVerify.length ? <p style={{color:'var(--subtext)',padding:'20px 0'}}>인증 대기 중인 신청이 없습니다.</p> :
+        pendingVerify.map(u=>(
+          <div key={u.id} className="admin-card fade-in">
+            <div className="admin-card-body">
+              <div className="value">{u.nickname} <span style={{color:'var(--subtext)',fontSize:12}}>{u.email}</span></div>
+              <div className="label" style={{marginTop:4}}>제출 정보</div>
+              <div className="value" style={{whiteSpace:'pre-wrap',fontSize:13}}>{u.verificationNote || '(제출 메모 없음)'}</div>
+              <button className="btn btn-text btn-small" style={{marginTop:4,padding:0}} onClick={()=>viewDoc(u.enrollmentDoc)}>📄 재학증명서 보기</button>
+              <div className="label" style={{marginTop:4}}>신청일: {new Date(u.createdAt).toLocaleDateString('ko-KR')}</div>
+              {rejectingId===u.id && (
+                <div className="form-group" style={{marginTop:8}}>
+                  <input type="text" className="form-input" value={rejectReason} onChange={e=>setRejectReason(e.target.value)} placeholder="거절 사유 (신청자에게 표시됩니다)"/>
+                </div>
+              )}
+            </div>
+            <div className="admin-card-actions">
+              <button className="btn btn-primary btn-small" onClick={async ()=>{await DS.setVerification(u.id,'verified');toast(`${u.nickname} 님을 인증했습니다.`);setRejectingId(null);rerender()}}>승인</button>
+              {rejectingId===u.id ? (
+                <>
+                  <button className="btn btn-danger-solid btn-small" onClick={async ()=>{await DS.setVerification(u.id,'rejected',rejectReason.trim()||'재학 정보가 확인되지 않았습니다.');toast('인증을 거절했습니다.');setRejectingId(null);setRejectReason('');rerender()}}>거절 확정</button>
+                  <button className="btn btn-secondary btn-small" onClick={()=>{setRejectingId(null);setRejectReason('')}}>취소</button>
+                </>
+              ) : (
+                <button className="btn btn-danger btn-small" onClick={()=>{setRejectingId(u.id);setRejectReason('')}}>거절</button>
+              )}
+            </div>
+          </div>
+        ))
+      )}
       {tab==='users' && users.filter(u=>u.role!=='admin').map(u=>(
         <div key={u.id} className="admin-card fade-in">
           <div className="admin-card-body">
             <div className="value">{u.nickname} <span style={{color:'var(--subtext)',fontSize:12}}>{u.email}</span></div>
-            <div className="label">가입일: {new Date(u.createdAt).toLocaleDateString('ko-KR')} {u.banned&&<span style={{color:'var(--danger)',fontWeight:600}}>· 정지됨</span>}</div>
+            <div className="label">가입일: {new Date(u.createdAt).toLocaleDateString('ko-KR')} · 가입: <span style={{color:(MEMBERSHIP_LABELS[u.membershipStatus]??MEMBERSHIP_LABELS.pending).color,fontWeight:600}}>{(MEMBERSHIP_LABELS[u.membershipStatus]??MEMBERSHIP_LABELS.pending).label}</span> · 인증: <span style={{color:(VERIFICATION_LABELS[u.verificationStatus]??VERIFICATION_LABELS.unverified).color,fontWeight:600}}>{(VERIFICATION_LABELS[u.verificationStatus]??VERIFICATION_LABELS.unverified).label}</span> {u.banned&&<span style={{color:'var(--danger)',fontWeight:600}}>· 정지됨</span>}</div>
           </div>
           <div className="admin-card-actions">
             {u.banned?<button className="btn btn-primary btn-small" onClick={async ()=>{await DS.updateUser(u.id,{banned:false});toast('정지가 해제되었습니다.');rerender()}}>정지 해제</button>:

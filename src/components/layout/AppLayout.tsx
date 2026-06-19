@@ -4,6 +4,8 @@ import { CategoryTabs } from './CategoryTabs'
 import { MobileNav } from './MobileNav'
 import { ReportModal } from '@/components/report/ReportModal'
 import { LoginPromptModal } from '@/components/ui/LoginPromptModal'
+import { VerifyPromptModal } from '@/components/ui/VerifyPromptModal'
+import { MembershipPromptModal } from '@/components/ui/MembershipPromptModal'
 
 export function AppLayout() {
   return (
@@ -18,6 +20,8 @@ export function AppLayout() {
       <MobileNav />
       <ReportModal />
       <LoginPromptModal />
+      <VerifyPromptModal />
+      <MembershipPromptModal />
     </>
   )
 }

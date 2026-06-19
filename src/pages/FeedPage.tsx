@@ -3,8 +3,8 @@ import { useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { useAuthAction } from '@/hooks/useAuthAction'
 import * as DS from '@/api/dataService'
-import { CATEGORY_LABELS } from '@/utils/constants'
-import { timeAgo, getDailyVerse } from '@/utils/helpers'
+import { CATEGORY_LABELS, MARKET_STATUS_LABELS } from '@/utils/constants'
+import { timeAgo } from '@/utils/helpers'
 import { HeartIcon, CommentIcon, EyeIcon } from '@/components/ui/Icons'
 import { CategoryPreview } from '@/components/home/CategoryPreview'
 import type { Post } from '@/types'
@@ -13,13 +13,12 @@ const CATEGORIES = [
   { category: '인기', label: '인기글', emoji: '🔥' },
   { category: '자유', label: '자유게시판', emoji: '💬' },
   { category: '사역고민', label: '사역 고민', emoji: '🙏' },
-  { category: '교회생활', label: '교회생활', emoji: '⛪' },
-  { category: '신학교', label: '신학교생활', emoji: '🎓' },
   { category: '신학토론', label: '신학 토론', emoji: '📖' },
-  { category: '설교나눔', label: '설교 나눔', emoji: '⛳' },
+  { category: '설교준비', label: '설교 준비', emoji: '⛳' },
   { category: '기도요청', label: '기도요청', emoji: '🕊️' },
   { category: '연봉', label: '사례비/처우', emoji: '💰' },
-  { category: '청빙', label: '청빙 공고', emoji: '📢' },
+  { category: '사역장터', label: '사역장터', emoji: '🛒' },
+  // { category: '청빙', label: '청빙 공고', emoji: '📢' },  // 숨김 — 커뮤니티 성장 후 오픈
 ]
 
 export function FeedPage() {
@@ -34,24 +33,17 @@ export function FeedPage() {
   const category = searchParams.get('category') || 'all'
   const search = searchParams.get('search') || ''
 
+  // 목록/제목/메타는 누구나 본다. 본문은 글 상세에서 승인 회원에게만 노출.
   const blockedIds = user ? DS.getBlockedIds(user.id) : []
   const allPosts = DS.getPosts()
-  const allComments = DS.getComments()
-  
-  // 댓글 수 미리 계산
-  const commentCounts: { [postId: string]: number } = {}
-  allComments.forEach(comment => {
-    commentCounts[comment.postId] = (commentCounts[comment.postId] || 0) + 1
-  })
 
   // 전체 홈페이지 뷰 (카테고리별 미리보기)
   if (category === 'all' && !search) {
     return (
       <>
-        <DailyVerseSection />
         <AnnouncementSection />
         <TrendingSection />
-        
+
         <div className="home-content">
           {CATEGORIES.map(cat => {
             const categoryPosts = allPosts.filter(p => {
@@ -59,9 +51,9 @@ export function FeedPage() {
               if (cat.category === '인기') return p.likes.length >= 3
               return p.category === cat.category
             })
-            
+
             categoryPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            
+
             return (
               <CategoryPreview
                 key={cat.category}
@@ -69,7 +61,8 @@ export function FeedPage() {
                 categoryLabel={cat.label}
                 emoji={cat.emoji}
                 posts={categoryPosts}
-                commentCounts={commentCounts}
+                commentCounts={{}}
+                alwaysShow={cat.category !== '인기'}
               />
             )
           })}
@@ -115,7 +108,7 @@ export function FeedPage() {
       {!visiblePosts.length ? (
         <div className="empty-state fade-in"><p>{search ? '검색 결과가 없습니다.' : '아직 게시글이 없습니다.'}</p></div>
       ) : (
-        visiblePosts.map(p => <PostCard key={p.id} post={p} commentCount={commentCounts[p.id] || 0} userId={user?.id} onClick={guard(() => navigate(`/post/${p.id}`))} />)
+        visiblePosts.map(p => <PostCard key={p.id} post={p} commentCount={p.commentCount} userId={user?.id} onClick={guard(() => navigate(`/post/${p.id}`))} />)
       )}
 
       {hasMore && (
@@ -131,6 +124,7 @@ export function FeedPage() {
 
 function PostCard({ post: p, commentCount, userId, onClick }: { post: Post; commentCount: number; userId?: string; onClick: () => void }) {
   const isCB = p.category === '청빙' && p.cheongbing
+  const isMarket = p.category === '사역장터' && p.market
   const isPR = p.category === '기도요청'
 
   return (
@@ -149,24 +143,20 @@ function PostCard({ post: p, commentCount, userId, onClick }: { post: Post; comm
           <span className="cheongbing-tag">마감: {p.cheongbing.deadline}</span>
         </div>
       )}
-      <div className="post-card-body">{p.content}</div>
+      {isMarket && p.market && (
+        <div className="cheongbing-meta">
+          <span className="cheongbing-tag">{p.market.type}</span>
+          {p.market.price && <span className="cheongbing-tag">{p.market.price}</span>}
+          <span className="cheongbing-tag" style={{ color: MARKET_STATUS_LABELS[p.market.status]?.color, fontWeight: 700 }}>{MARKET_STATUS_LABELS[p.market.status]?.label}</span>
+        </div>
+      )}
+      {p.content && <div className="post-card-body">{p.content}</div>}
       <div className="post-card-footer">
         <span><HeartIcon filled={p.likes.includes(userId || '')} color="var(--primary)" /> {p.likes.length}</span>
         <span><CommentIcon /> {commentCount}</span>
         <span><EyeIcon /> {p.views}</span>
         {isPR && p.prayers && <span className="prayer-count">{'\u{1F64F}'} {p.prayers.length}</span>}
       </div>
-    </div>
-  )
-}
-
-function DailyVerseSection() {
-  const v = getDailyVerse()
-  return (
-    <div className="daily-verse fade-in">
-      <h3>{'\u{1F4D6}'} 오늘의 말씀</h3>
-      <div className="vt">"{v.text}"</div>
-      <div className="vr">- {v.ref} -</div>
     </div>
   )
 }
@@ -201,6 +191,10 @@ function TrendingSection() {
           <span className="trending-rank">{i + 1}</span>
           <span className={`post-category cat-${p.category}`} style={{ fontSize: 11, padding: '1px 6px' }}>{p.category}</span>
           <span className="trending-title">{p.title}</span>
+          <span style={{ marginLeft: 'auto', display: 'flex', gap: 10, fontSize: 12, color: 'var(--subtext)', whiteSpace: 'nowrap' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><HeartIcon size={13} color="var(--primary)" /> {p.likes.length}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><CommentIcon size={13} /> {p.commentCount}</span>
+          </span>
         </div>
       ))}
     </div>

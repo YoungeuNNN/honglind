@@ -1,4 +1,9 @@
 // ── User ────────────────────────────────────────────────────
+// 1단계(학생증) 가입/읽기 게이트: pending → approved / rejected
+export type MembershipStatus = 'pending' | 'approved' | 'rejected'
+// 2단계(재학증명서) 쓰기 게이트: unverified → pending → verified / rejected
+export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected'
+
 export interface User {
   id: string
   nickname: string
@@ -7,6 +12,13 @@ export interface User {
   affiliation?: string
   role: 'admin' | 'user'
   banned: boolean
+  membershipStatus: MembershipStatus
+  membershipNote?: string | null
+  studentIdDoc?: string | null
+  enrollmentDoc?: string | null
+  verificationStatus: VerificationStatus
+  verificationNote?: string | null
+  verifiedAt?: string | null
   createdAt: string
 }
 
@@ -30,6 +42,23 @@ export interface Poll {
   options: PollOption[]
 }
 
+// ── 사역장터 (거래/자료 게시판) ──────────────────────────────
+export type MarketType = '판매' | '무료나눔' | '제작의뢰' | '구매요청'
+export type MarketStatus = 'available' | 'reserved' | 'done'
+
+export interface MarketData {
+  type: MarketType
+  price: string      // 자유 입력 (예: "10,000원", "무료", "협의")
+  status: MarketStatus
+  contact: string
+}
+
+export interface Attachment {
+  path: string                 // storage 경로 (market-files 버킷)
+  name: string
+  kind: 'image' | 'file'
+}
+
 export interface Post {
   id: string
   authorId: string
@@ -41,10 +70,13 @@ export interface Post {
   createdAt: string
   updatedAt: string | null
   cheongbing: CheongbingData | null
+  market: MarketData | null
+  attachments: Attachment[]
   prayers: string[] | null
   prayerAnswered?: boolean
   sermonVerse: string | null
   poll: Poll | null
+  commentCount: number   // 목록/미승인 표시용 댓글 수
 }
 
 // ── Comment ─────────────────────────────────────────────────

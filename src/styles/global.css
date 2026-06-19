@@ -352,11 +352,10 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .cat-청빙 { background: var(--success-light); color: var(--success); }
 .cat-사역고민 { background: #FFF3E0; color: #E65100; }
 .cat-신학토론 { background: var(--info-light); color: var(--info); }
-.cat-교회생활 { background: #FCE4EC; color: #C2185B; }
-.cat-신학교 { background: #F3E5F5; color: #8E24AA; }
 .cat-기도요청 { background: var(--accent-light); color: #B8860B; }
 .cat-연봉 { background: #E0F2F1; color: #00796B; }
-.cat-설교나눔 { background: #EDE7F6; color: #4A148C; }
+.cat-설교준비 { background: #EDE7F6; color: #4A148C; }
+.cat-사역장터 { background: #FFF8E1; color: #E65100; }
 .prayer-count { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--warm); }
 
 /* ============================================================
@@ -385,7 +384,6 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .auth-card .logo { justify-content: center; margin-bottom: 6px; }
 .auth-card .logo-text { font-size: 22px; }
 .auth-subtitle { text-align: center; color: var(--subtext); margin-bottom: 8px; font-size: 13px; }
-.auth-verse { text-align: center; font-style: italic; color: var(--warm); font-size: 12px; margin-bottom: 20px; line-height: 1.5; }
 .auth-btn {
   width: 100%; padding: 12px;
   background: linear-gradient(135deg, var(--primary), #7E57C2); color: #fff; border: none;
@@ -425,14 +423,6 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .post-card.cheongbing { border-left: 3px solid var(--success); }
 .cheongbing-meta { display: flex; gap: 4px; margin: 6px 0; flex-wrap: wrap; }
 .cheongbing-tag { font-size: 11px; padding: 2px 8px; border-radius: var(--radius-full); background: var(--success-light); color: var(--success); font-weight: 500; }
-.daily-verse {
-  background: linear-gradient(135deg, var(--primary) 0%, #7E57C2 50%, #9575CD 100%);
-  border-radius: var(--radius-lg); padding: 20px; margin-bottom: 12px; color: #fff; position: relative; overflow: hidden;
-}
-.daily-verse::after { content: ''; position: absolute; top: -20px; right: -20px; width: 100px; height: 100px; border-radius: 50%; background: rgba(255,255,255,0.06); }
-.daily-verse h3 { font-size: 12px; font-weight: 600; opacity: 0.8; margin-bottom: 8px; letter-spacing: 0.5px; }
-.daily-verse .vt { font-size: 14px; font-style: italic; line-height: 1.6; margin-bottom: 6px; }
-.daily-verse .vr { font-size: 12px; opacity: 0.65; text-align: right; }
 .trending-section { background: var(--card); border-radius: var(--radius-lg); padding: 16px 20px; margin-bottom: 12px; border: 1px solid var(--border-light); }
 .trending-section h3 { font-size: 14px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; color: var(--dark); }
 .trending-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; cursor: pointer; transition: var(--duration) var(--ease); }
@@ -620,6 +610,4 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   .btn-primary.btn-small { padding: 4px 8px; font-size: 11px; }
   .post-card { padding: 12px 14px; }
   .post-card-title { font-size: 14px; }
-  .daily-verse { padding: 14px; }
-  .daily-verse .vt { font-size: 13px; }
 }

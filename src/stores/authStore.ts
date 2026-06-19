@@ -17,7 +17,7 @@ interface AuthState {
 
   init: () => Promise<void>
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>
-  register: (data: { nickname: string; email: string; password: string }) => Promise<SignUpResult>
+  register: (data: { nickname: string; email: string; password: string; membershipNote?: string; studentIdFile?: File }) => Promise<SignUpResult>
   logout: () => Promise<void>
   refresh: () => Promise<void>
   updateProfile: (updates: Partial<User>) => Promise<void>
@@ -55,6 +55,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email, password) => {
     try {
       const user = await dataService.signIn(email, password)
+      // 게스트 상태로 제목만 로드돼 있을 수 있으므로, 승인 회원이면 전체 데이터 재로드
+      await dataService.reloadAll()
       set({ user })
       return { ok: true }
     } catch (e) {
@@ -64,7 +66,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   register: async (data) => {
-    const result = await dataService.signUp(data.email, data.password, data.nickname)
+    const result = await dataService.signUp({
+      email: data.email,
+      password: data.password,
+      nickname: data.nickname,
+      membershipNote: data.membershipNote,
+      studentIdFile: data.studentIdFile,
+    })
     if (result.user) set({ user: result.user })
     return result
   },

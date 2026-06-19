@@ -56,6 +56,9 @@ let loaded = false
 interface ProfileRow {
   id: string; nickname: string; email: string | null; affiliation: string | null
   role: string; banned: boolean; created_at: string
+  membership_status: string | null; membership_note: string | null
+  student_id_doc: string | null; enrollment_doc: string | null
+  verification_status: string | null; verification_note: string | null; verified_at: string | null
 }
 function rowToUser(r: ProfileRow): User {
   return {
@@ -65,6 +68,13 @@ function rowToUser(r: ProfileRow): User {
     affiliation: r.affiliation ?? undefined,
     role: (r.role === 'admin' ? 'admin' : 'user'),
     banned: r.banned,
+    membershipStatus: (r.membership_status as User['membershipStatus']) ?? 'pending',
+    membershipNote: r.membership_note,
+    studentIdDoc: r.student_id_doc,
+    enrollmentDoc: r.enrollment_doc,
+    verificationStatus: (r.verification_status as User['verificationStatus']) ?? 'unverified',
+    verificationNote: r.verification_note,
+    verifiedAt: r.verified_at,
     createdAt: r.created_at,
   }
 }
@@ -72,6 +82,7 @@ function rowToUser(r: ProfileRow): User {
 interface PostRow {
   id: string; author_id: string | null; category: string; title: string; content: string
   views: number; cheongbing: Post['cheongbing']; sermon_verse: string | null
+  market: Post['market']; attachments: Post['attachments'] | null
   prayer_answered: boolean; created_at: string; updated_at: string | null
 }
 function rowToPost(r: PostRow, likes: string[], prayers: string[] | null, poll: Poll | null): Post {
@@ -80,16 +91,19 @@ function rowToPost(r: PostRow, likes: string[], prayers: string[] | null, poll: 
     authorId: r.author_id ?? 'deleted',
     category: r.category,
     title: r.title,
-    content: r.content,
+    content: r.content ?? '',
     likes,
     views: r.views,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     cheongbing: r.cheongbing,
+    market: r.market ?? null,
+    attachments: r.attachments ?? [],
     prayers,
     prayerAnswered: r.prayer_answered,
     sermonVerse: r.sermon_verse,
     poll,
+    commentCount: 0,
   }
 }
 
@@ -180,8 +194,49 @@ interface BlockRow { blocker_id: string; blocked_id: string; created_at: string 
 // Bootstrap — 모든 데이터 fetch
 // ════════════════════════════════════════════════════════════
 
+// 비로그인/미승인 사용자: 목록/제목/메타(좋아요·댓글 수)는 모두 노출하되 본문은 NULL.
+// post_previews 뷰가 content 를 승인자에게만 채워주고, 카운트를 함께 내려준다.
+async function loadPreviewsOnly(selfProfile: ProfileRow | null): Promise<void> {
+  const [previewsRes, announcementsRes, allowedDomainsRes] = await Promise.all([
+    supabase.from('post_previews').select('*').order('created_at', { ascending: false }),
+    supabase.from('announcements').select('*').order('created_at', { ascending: false }),
+    supabase.from('allowed_email_domains').select('*').order('domain'),
+  ])
+
+  cache.posts = (previewsRes.data ?? []).map(p => {
+    const likeCount = Number(p.like_count) || 0
+    const prayerCount = Number(p.prayer_count) || 0
+    // 카운트 표시용 placeholder 배열 (실제 user id 는 미승인에게 노출하지 않음)
+    const likes = Array.from({ length: likeCount }, (_, i) => `~${i}`)
+    const prayers = p.category === '기도요청' ? Array.from({ length: prayerCount }, (_, i) => `~${i}`) : null
+    const post = rowToPost(p as PostRow, likes, prayers, null)
+    post.commentCount = Number(p.comment_count) || 0
+    return post
+  })
+  cache.postsById = new Map(cache.posts.map(p => [p.id, p]))
+  cache.announcements = (announcementsRes.data ?? []).map(a => rowToAnnouncement(a as AnnouncementRow))
+  cache.allowedDomains = (allowedDomainsRes.data ?? []).map(d => rowToAllowedDomain(d as AllowedDomainRow))
+  cache.users = selfProfile ? [rowToUser(selfProfile)] : []
+  cache.usersById = new Map(cache.users.map(u => [u.id, u]))
+  cache.comments = []
+  loaded = true
+}
+
 export async function loadAll(): Promise<void> {
   if (loaded) return
+
+  // 현재 세션의 가입(학생증) 승인 여부 판단 — 미승인이면 제목 미리보기만 로드
+  const { data: authData } = await supabase.auth.getUser()
+  let selfProfile: ProfileRow | null = null
+  let approved = false
+  if (authData.user) {
+    const { data: me } = await supabase.from('profiles').select('*').eq('id', authData.user.id).maybeSingle()
+    if (me) {
+      selfProfile = me as ProfileRow
+      approved = me.membership_status === 'approved' || me.role === 'admin'
+    }
+  }
+  if (!approved) { await loadPreviewsOnly(selfProfile); return }
 
   const [
     profilesRes, postsRes, postLikesRes, postPrayersRes,
@@ -268,6 +323,11 @@ export async function loadAll(): Promise<void> {
   })
   cache.comments = (commentsRes.data ?? []).map(c => rowToComment(c as CommentRow, commentLikes.get(c.id) ?? []))
 
+  // 게시글별 댓글 수 집계 (목록 표시용)
+  const commentCountByPost = new Map<string, number>()
+  cache.comments.forEach(c => commentCountByPost.set(c.postId, (commentCountByPost.get(c.postId) ?? 0) + 1))
+  cache.posts.forEach(p => { p.commentCount = commentCountByPost.get(p.id) ?? 0 })
+
   // Bookmarks / Blocks
   cache.bookmarks = (bookmarksRes.data ?? []).map(b => ({
     userId: (b as BookmarkRow).user_id, postId: (b as BookmarkRow).post_id, createdAt: (b as BookmarkRow).created_at,
@@ -339,21 +399,49 @@ export function findUserByEmail(email: string): User | undefined {
   return cache.users.find(u => u.email === email)
 }
 
-// signUp/signIn 용 — authStore 에서 사용
-export async function signUp(email: string, password: string, nickname: string): Promise<SignUpResult> {
-  // 클라이언트 1차 가드 — 서버 트리거가 최종 결정권자
-  if (!isDomainAllowed(email)) {
-    throw new Error('허용되지 않은 이메일 도메인입니다.')
-  }
+const VERIFICATION_BUCKET = 'verification-docs'
+
+function fileExt(file: File): string {
+  const m = file.name.match(/\.([a-z0-9]+)$/i)
+  return m ? m[1].toLowerCase() : 'jpg'
+}
+
+// 인증 서류(학생증/재학증명서) 업로드 → 저장 경로 반환. 로그인 세션 필요.
+export async function uploadVerificationDoc(userId: string, kind: 'student-id' | 'enrollment', file: File): Promise<string> {
+  const path = `${userId}/${kind}.${fileExt(file)}`
+  const { error } = await supabase.storage.from(VERIFICATION_BUCKET).upload(path, file, { upsert: true })
+  if (error) throw new Error(`서류 업로드 실패: ${error.message}`)
+  return path
+}
+
+// 관리자 — 서류 열람용 임시 서명 URL
+export async function getVerificationDocUrl(path: string): Promise<string | null> {
+  const { data, error } = await supabase.storage.from(VERIFICATION_BUCKET).createSignedUrl(path, 60)
+  if (error) { console.error('signed url 실패:', error); return null }
+  return data?.signedUrl ?? null
+}
+
+export interface SignUpParams {
+  email: string
+  password: string
+  nickname: string
+  membershipNote?: string
+  studentIdFile?: File
+}
+
+// 가입 = '신청'. 학생증을 올리고 membership_status='pending' 상태로 계정을 만든다.
+// (이메일 인증은 꺼두는 것을 전제 — 관리자 학생증 승인이 실질 게이트)
+export async function signUp(params: SignUpParams): Promise<SignUpResult> {
+  const { email, password, nickname, membershipNote, studentIdFile } = params
+  // 이메일 도메인 제한 없음 — 신대원 재학 여부는 학생증/재학증명서 승인으로 검증
   const { data, error } = await supabase.auth.signUp({
     email, password,
     options: {
-      data: { nickname },
+      data: { nickname, membership_note: membershipNote ?? null },
       emailRedirectTo: window.location.origin + '/auth',
     },
   })
   if (error) {
-    // 트리거 raise 메시지를 친화적으로 변환
     if (error.message?.includes('EMAIL_DOMAIN_NOT_ALLOWED')) {
       throw new Error('허용되지 않은 이메일 도메인입니다.')
     }
@@ -361,12 +449,18 @@ export async function signUp(email: string, password: string, nickname: string):
   }
   if (!data.user) throw new Error('회원가입 실패')
 
-  // 이메일 인증이 켜져있으면 session 이 null. 사용자는 메일 링크 확인 필요.
+  // 학생증 업로드는 로그인 세션이 있어야 가능 — 이메일 인증이 켜져 있으면 세션이 없다.
   if (!data.session) {
-    return { user: null, requiresEmailConfirmation: true }
+    throw new Error('이메일 인증이 켜져 있어 학생증을 첨부할 수 없습니다. 관리자에게 이메일 인증 비활성화를 요청하세요.')
   }
 
-  // 인증이 꺼진 환경(예: 로컬 개발) — 즉시 프로필 fetch
+  // 학생증 업로드 후 프로필에 경로 기록
+  if (studentIdFile) {
+    const path = await uploadVerificationDoc(data.user.id, 'student-id', studentIdFile)
+    await supabase.from('profiles').update({ student_id_doc: path }).eq('id', data.user.id)
+  }
+
+  // 프로필 fetch (트리거 생성 대기)
   let user: User | null = null
   for (let i = 0; i < 5; i++) {
     const { data: row } = await supabase.from('profiles').select('*').eq('id', data.user.id).maybeSingle()
@@ -377,6 +471,7 @@ export async function signUp(email: string, password: string, nickname: string):
   cache.users.push(user)
   cache.usersById.set(user.id, user)
   _sessionUser = user
+  // membership_status='pending' — 관리자 승인 전까지 읽기 불가
   return { user, requiresEmailConfirmation: false }
 }
 
@@ -420,6 +515,13 @@ export async function updateUser(id: string, updates: Partial<User>): Promise<Us
   if (updates.affiliation !== undefined) dbUpdates.affiliation = updates.affiliation
   if (updates.banned !== undefined) dbUpdates.banned = updates.banned
   if (updates.role !== undefined) dbUpdates.role = updates.role
+  if (updates.membershipStatus !== undefined) dbUpdates.membership_status = updates.membershipStatus
+  if (updates.membershipNote !== undefined) dbUpdates.membership_note = updates.membershipNote
+  if (updates.studentIdDoc !== undefined) dbUpdates.student_id_doc = updates.studentIdDoc
+  if (updates.enrollmentDoc !== undefined) dbUpdates.enrollment_doc = updates.enrollmentDoc
+  if (updates.verificationStatus !== undefined) dbUpdates.verification_status = updates.verificationStatus
+  if (updates.verificationNote !== undefined) dbUpdates.verification_note = updates.verificationNote
+  if (updates.verifiedAt !== undefined) dbUpdates.verified_at = updates.verifiedAt
 
   if (Object.keys(dbUpdates).length === 0 && updates.password === undefined) return cache.usersById.get(id) ?? null
 
@@ -442,6 +544,49 @@ export async function updateUser(id: string, updates: Partial<User>): Promise<Us
   return cache.usersById.get(id) ?? null
 }
 
+// 본인 재학증명서 인증 신청 — verification_status 를 'pending' 으로 (서버 트리거가 자가승격 차단)
+export async function submitVerification(note?: string, enrollmentFile?: File): Promise<User | null> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  let docPath: string | undefined
+  if (enrollmentFile) docPath = await uploadVerificationDoc(me.id, 'enrollment', enrollmentFile)
+  return updateUser(me.id, {
+    verificationStatus: 'pending',
+    verificationNote: note ?? null,
+    ...(docPath ? { enrollmentDoc: docPath } : {}),
+  })
+}
+
+// 관리자 — 재학증명서(쓰기) 인증 승인/거절
+export async function setVerification(
+  userId: string,
+  status: 'verified' | 'rejected' | 'unverified',
+  note?: string,
+): Promise<User | null> {
+  return updateUser(userId, {
+    verificationStatus: status,
+    verificationNote: note ?? null,
+    verifiedAt: status === 'verified' ? new Date().toISOString() : null,
+  })
+}
+
+// 관리자 — 학생증(가입/읽기) 승인/거절
+export async function setMembership(
+  userId: string,
+  status: 'approved' | 'rejected' | 'pending',
+  note?: string,
+): Promise<User | null> {
+  return updateUser(userId, { membershipStatus: status, membershipNote: note ?? null })
+}
+
+// 본인 가입 재신청(거절된 경우) — membership_status 를 'pending' 으로
+export async function resubmitMembership(note?: string, studentIdFile?: File): Promise<User | null> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  if (studentIdFile) await uploadVerificationDoc(me.id, 'student-id', studentIdFile)
+  return updateUser(me.id, { membershipStatus: 'pending', membershipNote: note ?? null })
+}
+
 export async function deleteUser(id: string): Promise<void> {
   // 본인 탈퇴: profiles row 삭제 (auth.users 는 admin 권한 필요라 그대로 둠)
   const { error } = await supabase.from('profiles').delete().eq('id', id)
@@ -462,6 +607,22 @@ export async function deleteUser(id: string): Promise<void> {
 export function getPosts(): Post[] { return cache.posts }
 export function getPostById(id: string): Post | undefined { return cache.postsById.get(id) }
 
+// ── 사역장터 첨부 파일 (공개 버킷 market-files) ──
+const MARKET_BUCKET = 'market-files'
+
+export async function uploadMarketFile(userId: string, file: File): Promise<string> {
+  const safe = file.name.replace(/[^\w.-]+/g, '_')
+  const path = `${userId}/${Date.now()}-${safe}`
+  const { error } = await supabase.storage.from(MARKET_BUCKET).upload(path, file, { upsert: false })
+  if (error) throw new Error(`파일 업로드 실패: ${error.message}`)
+  return path
+}
+
+// 공개 버킷이라 동기적으로 공개 URL 반환
+export function getMarketFileUrl(path: string): string {
+  return supabase.storage.from(MARKET_BUCKET).getPublicUrl(path).data.publicUrl
+}
+
 export async function createPost(data: Partial<Post>): Promise<Post> {
   const me = _sessionUser
   if (!me) throw new Error('로그인이 필요합니다.')
@@ -471,6 +632,8 @@ export async function createPost(data: Partial<Post>): Promise<Post> {
     title: data.title!,
     content: data.content!,
     cheongbing: data.cheongbing ?? null,
+    market: data.market ?? null,
+    attachments: data.attachments ?? [],
     sermon_verse: data.sermonVerse ?? null,
     prayer_answered: data.prayerAnswered ?? false,
   }).select().single()
@@ -499,6 +662,8 @@ export async function updatePost(id: string, updates: Partial<Post>): Promise<Po
   if (updates.content !== undefined) dbUpdates.content = updates.content
   if (updates.category !== undefined) dbUpdates.category = updates.category
   if (updates.cheongbing !== undefined) dbUpdates.cheongbing = updates.cheongbing
+  if (updates.market !== undefined) dbUpdates.market = updates.market
+  if (updates.attachments !== undefined) dbUpdates.attachments = updates.attachments
   if (updates.sermonVerse !== undefined) dbUpdates.sermon_verse = updates.sermonVerse
   if (updates.prayerAnswered !== undefined) dbUpdates.prayer_answered = updates.prayerAnswered
 
@@ -632,6 +797,8 @@ export async function createComment(data: Partial<Comment>): Promise<Comment> {
   if (error) throw error
   const comment = rowToComment(row as CommentRow, [])
   cache.comments.push(comment)
+  const p = cache.postsById.get(comment.postId)
+  if (p) p.commentCount += 1
   return comment
 }
 
@@ -650,7 +817,9 @@ export async function updateComment(id: string, updates: Partial<Comment>): Prom
 export async function deleteComment(id: string): Promise<void> {
   const { error } = await supabase.from('comments').delete().eq('id', id)
   if (error) throw error
+  const removed = cache.comments.filter(c => c.id === id || c.parentId === id)
   cache.comments = cache.comments.filter(c => c.id !== id && c.parentId !== id)
+  removed.forEach(c => { const p = cache.postsById.get(c.postId); if (p) p.commentCount = Math.max(0, p.commentCount - 1) })
 }
 
 export async function toggleCommentLike(commentId: string): Promise<boolean> {
