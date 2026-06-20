@@ -611,3 +611,25 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   .post-card { padding: 12px 14px; }
   .post-card-title { font-size: 14px; }
 }
+
+/* ===== Site footer ===== */
+.site-footer { border-top: 1px solid var(--border-light); margin-top: 32px; padding: 24px 20px 40px; }
+.site-footer-inner { max-width: 1200px; margin: 0 auto; text-align: center; }
+.site-footer-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; font-size: 13px; }
+.site-footer-links a { color: var(--subtext); text-decoration: none; transition: color var(--duration) var(--ease); }
+.site-footer-links a:hover { color: var(--primary); }
+.site-footer-sep { color: var(--border); }
+.site-footer-copy { margin-top: 10px; font-size: 12px; color: var(--subtext); }
+
+/* ===== Legal document pages (개인정보처리방침 / 이용약관) ===== */
+.legal-page { min-height: 100vh; background: var(--bg); padding: 32px 20px 64px; }
+.legal-page-inner { max-width: 760px; margin: 0 auto; }
+.legal-title { font-size: 26px; font-weight: 800; color: var(--dark); margin: 16px 0 4px; }
+.legal-meta { font-size: 13px; color: var(--subtext); margin-bottom: 24px; }
+.legal-lead { font-size: 14px; line-height: 1.8; color: var(--text-secondary); margin-bottom: 28px; }
+.legal-section { margin-bottom: 28px; }
+.legal-section h2 { font-size: 16px; font-weight: 700; color: var(--dark); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+.legal-section p { font-size: 14px; line-height: 1.8; color: var(--text-secondary); margin-bottom: 8px; }
+.legal-section ul { margin: 8px 0 8px 18px; padding: 0; }
+.legal-section li { font-size: 14px; line-height: 1.8; color: var(--text-secondary); list-style: disc; margin-bottom: 4px; }
+.legal-note { font-size: 13px; color: var(--subtext); background: var(--border-light); border-radius: var(--radius-md); padding: 10px 12px; margin-top: 8px; }

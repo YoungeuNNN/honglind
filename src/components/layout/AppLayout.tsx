@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom'
 import { Header } from './Header'
 import { CategoryTabs } from './CategoryTabs'
 import { MobileNav } from './MobileNav'
+import { Footer } from './Footer'
 import { ReportModal } from '@/components/report/ReportModal'
 import { LoginPromptModal } from '@/components/ui/LoginPromptModal'
 import { VerifyPromptModal } from '@/components/ui/VerifyPromptModal'
@@ -16,6 +17,7 @@ export function AppLayout() {
         <main className="main-new">
           <Outlet />
         </main>
+        <Footer />
       </div>
       <MobileNav />
       <ReportModal />

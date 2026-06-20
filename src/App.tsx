@@ -8,6 +8,9 @@ import { MembershipGuard } from '@/guards/MembershipGuard'
 import { AdminGuard } from '@/guards/AdminGuard'
 import { Toast } from '@/components/ui/Toast'
 import { AuthPage } from '@/pages/AuthPage'
+import { AboutPage } from '@/pages/AboutPage'
+import { PrivacyPage } from '@/pages/PrivacyPage'
+import { TermsPage } from '@/pages/TermsPage'
 import { FeedPage } from '@/pages/FeedPage'
 import { PostDetailPage } from '@/pages/PostDetailPage'
 import { WritePage } from '@/pages/WritePage'
@@ -54,6 +57,9 @@ export default function App() {
           <Routes>
             {/* 인증 불필요 */}
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
 
             {/* 공개 — 로그인 없이 볼 수 있는 페이지 (홈/게시판 목록) */}
             <Route element={<AppLayout />}>
