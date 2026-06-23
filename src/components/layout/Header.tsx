@@ -15,9 +15,10 @@ export function Header() {
   const [searchQuery, setSearchQuery] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
 
-  // 메인(홈) 화면에서는 사용자 정보(알림/아바타/메뉴)를 모두 숨긴다
+  // 홈에서도 로그인 사용자의 아바타/메뉴(로그아웃 포함)·알림은 표시한다.
+  // 단, 글쓰기 버튼은 내부 화면에서만 노출(아래 !isMain).
   const isMain = location.pathname === '/'
-  const showUserInfo = !!user && !isMain
+  const showUserInfo = !!user
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -96,7 +97,7 @@ export function Header() {
           </div>
         ) : (
           !user && (
-            <button className="btn btn-secondary btn-small" onClick={() => navigate('/auth')}>
+            <button className="btn btn-primary" onClick={() => navigate('/auth')} style={{ padding: '9px 22px', fontSize: 14 }}>
               로그인
             </button>
           )

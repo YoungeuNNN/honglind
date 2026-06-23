@@ -14,7 +14,7 @@ const CATEGORIES = [
   { category: '자유', label: '자유게시판', emoji: '💬' },
   { category: '사역고민', label: '사역 고민', emoji: '🙏' },
   { category: '신학토론', label: '신학 토론', emoji: '📖' },
-  { category: '설교준비', label: '설교 준비', emoji: '⛳' },
+  { category: '설교준비', label: '설교 준비', emoji: '🎙️' },
   { category: '기도요청', label: '기도요청', emoji: '🕊️' },
   { category: '연봉', label: '사례비/처우', emoji: '💰' },
   { category: '사역장터', label: '사역장터', emoji: '🛒' },
@@ -128,7 +128,13 @@ function PostCard({ post: p, commentCount, userId, onClick }: { post: Post; comm
   const isPR = p.category === '기도요청'
 
   return (
-    <div className={`post-card ${isCB ? 'cheongbing' : ''} fade-in`} onClick={onClick}>
+    <div
+      className={`post-card ${isCB ? 'cheongbing' : ''} fade-in`}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
+    >
       <div className="post-card-header">
         <span className={`post-category cat-${p.category}`}>{p.category}</span>
         {p.prayerAnswered && <span style={{ fontSize: 11, background: 'var(--accent-light)', color: 'var(--warm)', padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>&#10024; 응답</span>}
@@ -169,7 +175,14 @@ function AnnouncementSection() {
   return (
     <>
       {anns.map(a => (
-        <div key={a.id} className="announcement-card fade-in" onClick={guard(() => navigate('/admin'))}>
+        <div
+          key={a.id}
+          className="announcement-card fade-in"
+          onClick={guard(() => navigate('/admin'))}
+          role="button"
+          tabIndex={0}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); guard(() => navigate('/admin'))() } }}
+        >
           <span className="announcement-badge">공지</span>
           <strong>{a.title}</strong>
           <span style={{ fontSize: 12, color: 'var(--subtext)', marginLeft: 8 }}>{timeAgo(a.createdAt)}</span>
@@ -187,7 +200,14 @@ function TrendingSection() {
     <div className="trending-section fade-in">
       <h3>{'\u{1F525}'} 실시간 인기</h3>
       {trending.map((p, i) => (
-        <div key={p.id} className="trending-item" onClick={guard(() => navigate(`/post/${p.id}`))}>
+        <div
+          key={p.id}
+          className="trending-item"
+          onClick={guard(() => navigate(`/post/${p.id}`))}
+          role="button"
+          tabIndex={0}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); guard(() => navigate(`/post/${p.id}`))() } }}
+        >
           <span className="trending-rank">{i + 1}</span>
           <span className={`post-category cat-${p.category}`} style={{ fontSize: 11, padding: '1px 6px' }}>{p.category}</span>
           <span className="trending-title">{p.title}</span>

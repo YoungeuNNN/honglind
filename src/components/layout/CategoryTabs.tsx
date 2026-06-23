@@ -6,7 +6,7 @@ const CATEGORY_ITEMS = [
   { category: '자유', label: '자유게시판', emoji: '💬' },
   { category: '사역고민', label: '사역 고민', emoji: '🙏' },
   { category: '신학토론', label: '신학 토론', emoji: '📖' },
-  { category: '설교준비', label: '설교 준비', emoji: '⛳' },
+  { category: '설교준비', label: '설교 준비', emoji: '🎙️' },
   { category: '기도요청', label: '기도요청', emoji: '🕊️' },
   { category: '연봉', label: '사례비/처우', emoji: '💰' },
   { category: '사역장터', label: '사역장터', emoji: '🛒' },

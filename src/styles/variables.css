@@ -5,15 +5,18 @@
   --primary-50: rgba(0, 163, 255, 0.08);
   --accent: #FF6B35;
   --accent-light: #FFF2ED;
-  --dark: #000000;
+  /* Sage — quiet secondary accent (신뢰/차분) */
+  --sage: #4E8A78;
+  --sage-light: #EAF2EF;
+  --dark: #16191F;
   --warm: #666666;
-  --bg: #FFFFFF;
+  --bg: #F7F8FA;
   --card: #FFFFFF;
-  --text: #000000;
+  --text: #16191F;
   --text-secondary: #333333;
-  --subtext: #666666;
-  --border: #E5E5E5;
-  --border-light: #F5F5F5;
+  --subtext: #5E6470;
+  --border: #E3E6EA;
+  --border-light: #EDEFF2;
   --success: #0D904F;
   --success-light: #E6F4EA;
   --danger: #D93025;

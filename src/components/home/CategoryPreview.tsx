@@ -44,7 +44,10 @@ export function CategoryPreview({ category, categoryLabel, emoji, posts, onLock,
           <div
             key={post.id}
             className="category-preview-post"
+            role="button"
+            tabIndex={0}
             onClick={onLock ? onLock : guard(() => navigate(`/post/${post.id}`))}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (onLock ? onLock : guard(() => navigate(`/post/${post.id}`)))() } }}
           >
             <div className="preview-post-row">
               <div className="preview-post-title">{post.title}</div>

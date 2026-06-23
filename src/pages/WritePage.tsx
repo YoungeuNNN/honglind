@@ -96,7 +96,8 @@ export function WritePage() {
 
   return (
     <>
-      <div className="back-btn" onClick={() => navigate(backTarget)}><BackIcon /> {isEdit ? '돌아가기' : '목록으로'}</div>
+      <div className="back-btn" onClick={() => navigate(backTarget)} role="button" tabIndex={0}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(backTarget) } }}><BackIcon /> {isEdit ? '돌아가기' : '목록으로'}</div>
       <div className="write-page fade-in">
         <h2>{isEdit ? '글 수정' : '새 글 작성'}</h2>
         <div className="form-group"><label>카테고리</label>
@@ -119,14 +120,14 @@ export function WritePage() {
               <div className="form-group"><label style={{fontSize:12}}>사례비</label><input type="text" value={cbSalary} onChange={e=>setCbSalary(e.target.value)} placeholder="예: 월 250만원 + 사택"/></div>
               <div className="form-group"><label style={{fontSize:12}}>마감일</label><input type="date" value={cbDeadline} onChange={e=>setCbDeadline(e.target.value)}/></div>
             </div>
-            <div className="form-group"><label style={{fontSize:12}}>연락처</label><input type="text" value={cbContact} onChange={e=>setCbContact(e.target.value)} placeholder="이메일 또는 전화번호" style={{width:'100%',padding:'8px 12px',border:'1px solid #C8E6C9',borderRadius:8,fontSize:13}}/></div>
+            <div className="form-group"><label style={{fontSize:12}}>연락처</label><input type="text" className="form-input" value={cbContact} onChange={e=>setCbContact(e.target.value)} placeholder="이메일 또는 전화번호"/></div>
           </div>
         )}
         {category === '설교준비' && (
           <div className="cheongbing-fields" style={{background:'#F5F0FF',borderColor:'#D1C4E9'}}>
-            <h4 style={{color:'#4A148C'}}>&#9971; 설교 준비</h4>
+            <h4 style={{color:'#4A148C'}}>&#127897;&#65039; 설교 준비</h4>
             <div className="form-group"><label style={{fontSize:12}}>본문 성경 구절</label>
-              <input type="text" value={sermonVerse} onChange={e=>setSermonVerse(e.target.value)} placeholder="예: 요한복음 3:16" style={{width:'100%',padding:'8px 12px',border:'1px solid #D1C4E9',borderRadius:8,fontSize:13}}/></div>
+              <input type="text" className="form-input" value={sermonVerse} onChange={e=>setSermonVerse(e.target.value)} placeholder="예: 요한복음 3:16"/></div>
           </div>
         )}
         {category === '사역장터' && (
@@ -134,15 +135,15 @@ export function WritePage() {
             <h4 style={{color:'#E65100'}}>&#128722; 거래 정보</h4>
             <div className="cheongbing-row">
               <div className="form-group"><label style={{fontSize:12}}>거래 유형</label>
-                <select value={mType} onChange={e=>setMType(e.target.value as MarketType)} style={{width:'100%',padding:'8px 12px',border:'1px solid #FFE0B2',borderRadius:8,fontSize:13}}>
+                <select value={mType} onChange={e=>setMType(e.target.value as MarketType)} style={{width:'100%',padding:'10px 14px',border:'1.5px solid var(--border)',borderRadius:'var(--radius-md)',fontSize:14,background:'var(--card)',color:'var(--text)'}}>
                   {MARKET_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div className="form-group"><label style={{fontSize:12}}>가격</label>
-                <input type="text" value={mPrice} onChange={e=>setMPrice(e.target.value)} placeholder="예: 10,000원 / 무료 / 협의" style={{width:'100%',padding:'8px 12px',border:'1px solid #FFE0B2',borderRadius:8,fontSize:13}}/></div>
+                <input type="text" className="form-input" value={mPrice} onChange={e=>setMPrice(e.target.value)} placeholder="예: 10,000원 / 무료 / 협의"/></div>
             </div>
             <div className="form-group"><label style={{fontSize:12}}>연락 방법</label>
-              <input type="text" value={mContact} onChange={e=>setMContact(e.target.value)} placeholder="예: 앱 내 쪽지 / 이메일 / 오픈채팅 링크" style={{width:'100%',padding:'8px 12px',border:'1px solid #FFE0B2',borderRadius:8,fontSize:13}}/></div>
+              <input type="text" className="form-input" value={mContact} onChange={e=>setMContact(e.target.value)} placeholder="예: 앱 내 쪽지 / 이메일 / 오픈채팅 링크"/></div>
             <div className="form-group"><label style={{fontSize:12}}>자료 / 미리보기 첨부</label>
               <input type="file" multiple accept="image/*,.pdf,.hwp,.hwpx,.ppt,.pptx,.doc,.docx,.zip"
                 onChange={e=>{ setNewFiles(prev=>[...prev, ...Array.from(e.target.files||[])]); e.target.value='' }}

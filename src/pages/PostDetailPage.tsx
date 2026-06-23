@@ -133,7 +133,8 @@ export function PostDetailPage() {
 
   return (
     <>
-      <div className="back-btn" onClick={() => navigate('/')}><BackIcon /> 목록으로</div>
+      <div className="back-btn" onClick={() => navigate('/')} role="button" tabIndex={0}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/') } }}><BackIcon /> 목록으로</div>
       <div className="post-detail fade-in">
         <div className="post-detail-header">
           <span className={`post-category cat-${post.category}`}>{post.category}</span>
@@ -370,7 +371,7 @@ function CommentItem({ comment: c, allComments, postAuthorId, postId, rerender }
           <>
             <div className="comment-body">{c.content}</div>
             <div className="comment-actions">
-              <button className="btn-text btn-small" onClick={toggleLike} style={isLiked ? { color: 'var(--primary)' } : {}}>
+              <button className="btn-text btn-small" onClick={toggleLike} aria-label="댓글 좋아요" aria-pressed={isLiked} style={isLiked ? { color: 'var(--primary)' } : {}}>
                 &#9829; {c.likes.length || ''}
               </button>
               {!c.parentId && <button className="btn-text btn-small" onClick={() => setShowReply(!showReply)}>답글</button>}
