@@ -147,8 +147,8 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
 .category-tab.active { 
   background: var(--primary); color: white; border-color: var(--primary);
 }
-.category-emoji { font-size: 14px; }
-.category-label { font-size: 12px; }
+.category-emoji { font-size: 15px; }
+.category-label { font-size: 13px; font-weight: 700; }
 
 /* Home Content */
 .home-content {
