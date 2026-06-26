@@ -1,6 +1,7 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
+import { useUIStore } from '@/stores/uiStore'
 import { useAuthAction } from '@/hooks/useAuthAction'
 import * as DS from '@/api/dataService'
 import { CATEGORY_LABELS, MARKET_STATUS_LABELS } from '@/utils/constants'
@@ -26,6 +27,7 @@ export function FeedPage() {
   const guard = useAuthAction()
   const [searchParams] = useSearchParams()
   const { user } = useAuthStore()
+  useUIStore(s => s.dataVersion)  // 데이터 갱신(탭 복귀 새로고침) 시 피드/트렌딩 재렌더 구독
   const [sort, setSort] = useState<'latest' | 'popular'>('latest')
   const [page, setPage] = useState(0)
   const pageSize = 20
@@ -192,10 +194,37 @@ function AnnouncementSection() {
   )
 }
 
+// 실시간 인기(트렌딩) 산정 기준 — 최근 N일 글만 후보로, 참여도 가중 점수로 정렬.
+// 숫자만 바꾸면 기준이 조정됩니다.
+const TRENDING_WINDOW_DAYS = 7                                   // 최근 며칠 글까지 후보로 볼지
+const TRENDING_W = { view: 1, like: 3, comment: 5, prayer: 3 }   // 항목별 가중치
+
+function trendingScore(p: Post): number {
+  return p.views * TRENDING_W.view
+    + p.likes.length * TRENDING_W.like
+    + p.commentCount * TRENDING_W.comment
+    + (p.prayers?.length ?? 0) * TRENDING_W.prayer
+}
+
+// 최근 N일 내 글만 후보로, 가중 점수 높은 순 상위 5개.
+// (Date.now 를 컴포넌트 렌더 밖 일반 함수로 두어 순수성 규칙을 지킴)
+function computeTrending(posts: Post[]): Post[] {
+  const now = Date.now()
+  const windowMs = TRENDING_WINDOW_DAYS * 24 * 60 * 60 * 1000
+  const recent = posts.filter(p => now - new Date(p.createdAt).getTime() <= windowMs)
+  const pool = recent.length >= 5 ? recent : posts  // 최근 글이 적으면 전체로 폴백(섹션이 비지 않게)
+  return [...pool]
+    .sort((a, b) =>
+      trendingScore(b) - trendingScore(a) ||
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5)
+}
+
 function TrendingSection() {
   const navigate = useNavigate()
   const guard = useAuthAction()
-  const trending = [...DS.getPosts()].sort((a, b) => b.views - a.views).slice(0, 5)
+  const trending = computeTrending(DS.getPosts())
+  if (!trending.length) return null
   return (
     <div className="trending-section fade-in">
       <h3>{'\u{1F525}'} 실시간 인기</h3>

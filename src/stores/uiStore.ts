@@ -13,7 +13,9 @@ interface UIState {
   loginPromptOpen: boolean
   verifyPromptOpen: boolean
   membershipPromptOpen: boolean
+  dataVersion: number   // 데이터 캐시가 갱신될 때마다 +1 (구독 컴포넌트 재렌더용)
 
+  bumpData: () => void
   toggleUserMenu: () => void
   closeUserMenu: () => void
   toggleNotifPanel: () => void
@@ -35,7 +37,9 @@ export const useUIStore = create<UIState>((set) => ({
   loginPromptOpen: false,
   verifyPromptOpen: false,
   membershipPromptOpen: false,
+  dataVersion: 0,
 
+  bumpData: () => set(s => ({ dataVersion: s.dataVersion + 1 })),
   toggleUserMenu: () => set(s => ({ userMenuOpen: !s.userMenuOpen })),
   closeUserMenu: () => set({ userMenuOpen: false }),
   toggleNotifPanel: () => set(s => ({ notifPanelOpen: !s.notifPanelOpen })),

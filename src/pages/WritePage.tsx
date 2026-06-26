@@ -70,7 +70,9 @@ export function WritePage() {
         finalAttachments = [...attachments, ...uploaded]
       }
       const data = {
-        authorId: user.id, category, title: title.trim(), content: content.trim(),
+        // 수정 시에는 원래 작성자를 유지(관리자가 남의 글을 고쳐도 작성자가 바뀌지 않게)
+        authorId: isEdit ? (existingPost?.authorId ?? user.id) : user.id,
+        category, title: title.trim(), content: content.trim(),
         cheongbing: category === '청빙' ? { position: cbPos, denomination: cbDenom, region: cbRegion, churchSize: cbSize, salary: cbSalary, deadline: cbDeadline, contact: cbContact } : null,
         market: category === '사역장터'
           ? { type: mType, price: mPrice.trim(), status: (existingPost?.market?.status || 'available'), contact: mContact.trim() }

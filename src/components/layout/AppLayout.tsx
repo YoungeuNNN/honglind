@@ -7,8 +7,10 @@ import { ReportModal } from '@/components/report/ReportModal'
 import { LoginPromptModal } from '@/components/ui/LoginPromptModal'
 import { VerifyPromptModal } from '@/components/ui/VerifyPromptModal'
 import { MembershipPromptModal } from '@/components/ui/MembershipPromptModal'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 
 export function AppLayout() {
+  useAutoRefresh()
   return (
     <>
       <Header />

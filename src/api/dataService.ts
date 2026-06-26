@@ -48,6 +48,15 @@ const cache: Cache = {
 }
 
 let loaded = false
+let loading: Promise<void> | null = null
+
+/** 캐시를 강제로 다시 불러온다(탭 복귀 시 최신화용). 동시 호출은 1건으로 합쳐 중복 fetch 방지. */
+export async function refresh(): Promise<void> {
+  if (loading) return loading
+  loaded = false
+  loading = loadAll().finally(() => { loading = null })
+  return loading
+}
 
 // ════════════════════════════════════════════════════════════
 // DB Row → App Model 매핑

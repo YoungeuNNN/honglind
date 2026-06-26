@@ -319,6 +319,9 @@ export async function incrementViews(postId: string): Promise<void> {
   if (post) post.views = (post.views || 0) + 1
 }
 
+// mock 은 인메모리 정적 데이터라 재요청이 없음 — 인터페이스 유지용 no-op
+export async function refresh(): Promise<void> {}
+
 export function getComments(): Comment[] {
   return []
 }

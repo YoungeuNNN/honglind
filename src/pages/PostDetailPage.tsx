@@ -20,17 +20,25 @@ export function PostDetailPage() {
   const [commentText, setCommentText] = useState('')
 
   const post = id ? DS.getPostById(id) : undefined
+  const isOwner = !!user && post?.authorId === user.id
+  const isAdmin = user?.role === 'admin'
 
-  // 조회수 증가 — 페이지 진입 시 1회
+  // 조회수 증가 — 진입 시 1회만. 본인 글/관리자는 제외하고,
+  // 같은 브라우저 세션에서 같은 글은 한 번만 집계(새로고침·재방문 중복 방지).
   useEffect(() => {
-    if (id) DS.incrementViews(id).then(rerender).catch(console.error)
-  }, [id])
+    if (!id || isOwner || isAdmin) return
+    const KEY = 'viewed_posts'
+    let viewed: string[] = []
+    try { viewed = JSON.parse(sessionStorage.getItem(KEY) || '[]') } catch { /* ignore */ }
+    if (viewed.includes(id)) return
+    try { sessionStorage.setItem(KEY, JSON.stringify([...viewed, id])) } catch { /* ignore */ }
+    DS.incrementViews(id).then(rerender).catch(console.error)
+  }, [id, isOwner, isAdmin])
 
   if (!post) { navigate('/'); return null }
 
   const allComments = DS.getComments().filter(c => c.postId === post.id)
   const topComments = allComments.filter(c => !c.parentId)
-  const isOwner = post.authorId === user?.id
   const isLiked = user ? post.likes.includes(user.id) : false
   const isPR = post.category === '기도요청'
   const hasPrayed = user ? post.prayers?.includes(user.id) : false
@@ -40,7 +48,7 @@ export function PostDetailPage() {
   const canSeeContent = !!user && (user.membershipStatus === 'approved' || user.role === 'admin')
   const reported = user ? DS.hasReported(user.id, 'post', post.id) : false
   const bookmarked = user ? DS.isBookmarked(user.id, post.id) : false
-  const authorLabel = isOwner ? '나' : (post.authorId === 'deleted' ? '탈퇴한 사용자' : '익명')
+  const authorLabel = isOwner ? '나' : (post.authorId === 'deleted' ? '탈퇴한 사용자' : (DS.getUserById(post.authorId)?.nickname ?? '익명'))
 
   const toggleLike = async () => {
     if (!user) return
@@ -262,9 +270,9 @@ export function PostDetailPage() {
               <button className="btn-text btn-small" onClick={() => handleBlock(post.authorId)}>차단</button>
             </>
           )}
-          {isOwner && (
+          {(isOwner || isAdmin) && (
             <div className="post-owner-actions">
-              <button className="btn btn-secondary btn-small" onClick={() => navigate(`/write/${post.id}`)}>수정</button>
+              <button className="btn btn-secondary btn-small" onClick={() => navigate(`/write/${post.id}`)}>수정{!isOwner && isAdmin ? ' (관리자)' : ''}</button>
               <button className="btn btn-danger btn-small" onClick={handleDelete}>삭제</button>
             </div>
           )}
@@ -303,12 +311,13 @@ function CommentItem({ comment: c, allComments, postAuthorId, postId, rerender }
   const [editText, setEditText] = useState(c.content)
 
   const isOwner = c.authorId === user?.id
+  const isAdmin = user?.role === 'admin'
   const blocked = user && !isOwner && DS.isBlocked(user.id, c.authorId)
   const isLiked = user ? c.likes.includes(user.id) : false
   const replies = allComments.filter(x => x.parentId === c.id)
   const isOP = c.authorId === postAuthorId
   const reported = user ? DS.hasReported(user.id, 'comment', c.id) : false
-  const displayName = c.authorId === 'deleted' ? '탈퇴한 사용자' : isOwner ? '나' : isOP ? '글쓴이' : '익명'
+  const displayName = c.authorId === 'deleted' ? '탈퇴한 사용자' : isOwner ? '나' : (DS.getUserById(c.authorId)?.nickname ?? '익명')
 
   if (blocked) {
     return (
@@ -380,8 +389,8 @@ function CommentItem({ comment: c, allComments, postAuthorId, postId, rerender }
                   {reported ? '신고완료' : '신고'}
                 </button>
               )}
-              {isOwner && <button className="btn-text btn-small" onClick={() => { setEditing(true); setEditText(c.content) }}>수정</button>}
-              {isOwner && <button className="btn-text btn-small btn-danger" onClick={handleDelete}>삭제</button>}
+              {(isOwner || isAdmin) && <button className="btn-text btn-small" onClick={() => { setEditing(true); setEditText(c.content) }}>수정</button>}
+              {(isOwner || isAdmin) && <button className="btn-text btn-small btn-danger" onClick={handleDelete}>삭제</button>}
             </div>
           </>
         )}
