@@ -93,7 +93,14 @@ interface PostRow {
   views: number; cheongbing: Post['cheongbing']; sermon_verse: string | null
   market: Post['market']; attachments: Post['attachments'] | null
   prayer_answered: boolean; created_at: string; updated_at: string | null
+  like_boost?: number | null
 }
+
+// 관리자 가산 좋아요용 placeholder id (실제 user id 와 충돌하지 않도록 '~b' 접두사)
+function boostLikes(count: number): string[] {
+  return Array.from({ length: Math.max(0, count) }, (_, i) => `~b${i}`)
+}
+
 function rowToPost(r: PostRow, likes: string[], prayers: string[] | null, poll: Poll | null): Post {
   return {
     id: r.id,
@@ -102,6 +109,7 @@ function rowToPost(r: PostRow, likes: string[], prayers: string[] | null, poll: 
     title: r.title,
     content: r.content ?? '',
     likes,
+    likeBoost: Number(r.like_boost) || 0,
     views: r.views,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -314,7 +322,8 @@ export async function loadAll(): Promise<void> {
 
   // Posts
   cache.posts = (postsRes.data ?? []).map(p => {
-    const likes = postLikes.get(p.id) ?? []
+    // 실제 좋아요 + 관리자 가산(like_boost) placeholder
+    const likes = [...(postLikes.get(p.id) ?? []), ...boostLikes(Number((p as PostRow).like_boost) || 0)]
     const prayersArr = postPrayers.get(p.id) ?? null
     const opts = optionsByPost.get(p.id)
     const poll: Poll | null = opts && opts.length
@@ -731,6 +740,25 @@ export async function togglePostLike(postId: string): Promise<boolean> {
   }
 }
 
+/**
+ * 관리자 전용: 게시글의 가산 좋아요(like_boost)를 delta(±1 등)만큼 조정한다.
+ * 표시 좋아요 = 실제 post_likes + like_boost. 0 미만으로는 내려가지 않는다.
+ * 반환값은 조정 후 like_boost.
+ */
+export async function adminAdjustPostLikeBoost(postId: string, delta: number): Promise<number> {
+  const me = _sessionUser
+  if (!me || me.role !== 'admin') throw new Error('관리자만 사용할 수 있습니다.')
+  const post = cache.postsById.get(postId)
+  if (!post) throw new Error('게시글을 찾을 수 없습니다.')
+  const newBoost = Math.max(0, (post.likeBoost ?? 0) + delta)
+  const { error } = await supabase.from('posts').update({ like_boost: newBoost }).eq('id', postId)
+  if (error) throw error
+  post.likeBoost = newBoost
+  const real = post.likes.filter(id => !id.startsWith('~'))   // placeholder(~, ~b) 제거 → 실제 좋아요 id
+  post.likes = [...real, ...boostLikes(newBoost)]
+  return newBoost
+}
+
 // ── Prayers (Posts) ──
 export async function togglePostPrayer(postId: string): Promise<boolean> {
   const me = _sessionUser
@@ -914,17 +942,17 @@ export function getBlockedIds(userId: string): string[] {
 
 export function getNotifications(): Notification[] { return cache.notifications }
 
-export async function createNotification(data: Partial<Notification>): Promise<Notification> {
-  const { data: row, error } = await supabase.from('notifications').insert({
+export async function createNotification(data: Partial<Notification>): Promise<void> {
+  // 알림 수신자는 보통 '다른 사용자'다. notifications의 SELECT RLS가 user_id = auth.uid()(자기 것만 조회)
+  // 라서 .select()로 방금 insert한 행을 되읽으면 정책에 막혀 실패한다. 따라서 insert만 수행한다.
+  // 내 알림은 loadAll()이 별도로 적재하므로 여기서 캐시에 넣을 필요도 없다.
+  const { error } = await supabase.from('notifications').insert({
     user_id: data.userId!,
     type: data.type!,
     post_id: data.postId || null,
     message: data.message ?? '',
-  }).select().single()
+  })
   if (error) throw error
-  const n = rowToNotification(row as NotificationRow)
-  cache.notifications.unshift(n)
-  return n
 }
 
 export function getUserNotifications(userId: string): Notification[] {

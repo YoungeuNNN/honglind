@@ -12,7 +12,6 @@ const SIDEBAR_ITEMS = [
     { category: '신학토론', label: '신학 토론', emoji: '\u{1F4D6}' },
     { category: '설교준비', label: '설교 준비', emoji: '\u{1F399}\u{FE0F}' },
     { category: '기도요청', label: '기도요청', emoji: '\u{1F54A}' },
-    { category: '연봉', label: '사례비/처우', emoji: '\u{1F4B0}' },
     { category: '사역장터', label: '사역장터', emoji: '\u{1F6D2}' },
   ]},
   // 청빙 게시판은 커뮤니티 성장 후 오픈 (숨김)

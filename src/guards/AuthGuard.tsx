@@ -8,7 +8,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, initialized } = useAuthStore()
   const openLoginPrompt = useUIStore(s => s.openLoginPrompt)
 
-  // 비로그인 상태로 보호 라우트에 직접 접근한 경우: 홈으로 보내고 로그인 유도 팝업
+  // 비로그인 상태로 보호 라우트에 직접 접근한 경우: 홈으로 보내고 로그인 모달
   useEffect(() => {
     if (initialized && !user) openLoginPrompt()
   }, [initialized, user, openLoginPrompt])

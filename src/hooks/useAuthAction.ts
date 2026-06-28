@@ -4,7 +4,7 @@ import { useUIStore } from '@/stores/uiStore'
 /**
  * 로그인 라우트 체크 공통화 훅.
  * 보호된 동작(글 보기/쓰기/내 정보 등)을 감싸면, 로그인 상태에서는 그대로 실행하고
- * 비로그인 상태에서는 로그인 유도 팝업을 띄운다.
+ * 비로그인 상태에서는 로그인 모달을 띄운다. 로그인에 성공하면 감쌌던 동작을 이어서 실행한다.
  *
  *   const guard = useAuthAction()
  *   <div onClick={guard(() => navigate(`/post/${id}`))} />
@@ -17,7 +17,7 @@ export function useAuthAction() {
     if (user) {
       action()
     } else {
-      openLoginPrompt()
+      openLoginPrompt(action)
     }
   }
 }

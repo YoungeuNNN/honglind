@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { EyeIcon } from '@/components/ui/Icons'
+import { EyeIcon, CategoryIcon } from '@/components/ui/Icons'
 import { useAuthAction } from '@/hooks/useAuthAction'
 import type { Post } from '@/types'
 
@@ -15,7 +15,7 @@ interface CategoryPreviewProps {
   alwaysShow?: boolean
 }
 
-export function CategoryPreview({ category, categoryLabel, emoji, posts, onLock, alwaysShow = false }: CategoryPreviewProps) {
+export function CategoryPreview({ category, categoryLabel, posts, onLock, alwaysShow = false }: CategoryPreviewProps) {
   const navigate = useNavigate()
   const guard = useAuthAction()
 
@@ -27,7 +27,7 @@ export function CategoryPreview({ category, categoryLabel, emoji, posts, onLock,
     <div className="category-preview">
       <div className="category-preview-header">
         <div className="category-preview-title">
-          <span className="category-preview-emoji">{emoji}</span>
+          <span className="category-preview-icon"><CategoryIcon category={category} size={15} /></span>
           <h3>{categoryLabel}</h3>
         </div>
         <button

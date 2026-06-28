@@ -64,11 +64,16 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
 /* Header */
 .header {
   background: var(--card); border-bottom: 1px solid var(--border);
-  padding: 0 20px; height: 56px; display: flex; align-items: center; justify-content: space-between;
+  height: 60px; display: flex; justify-content: center;
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
 }
-.header-left { display: flex; align-items: center; gap: 16px; }
-.header-right { display: flex; align-items: center; gap: 8px; }
+/* 바 배경은 전체 폭, 콘텐츠는 .main-new(1200px)와 동일하게 가운데 정렬 */
+.header-inner {
+  width: 100%; max-width: 1140px; padding: 0 20px 0 calc(20px - 0.1cm);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.header-left { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+.header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
 /* Search Bar */
 .search-bar {
@@ -120,20 +125,22 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
 .sidebar-divider { height: 1px; background: var(--border-light); margin: 8px 16px; }
 
 /* Layout — 상단 헤더 + 카테고리 탭 아래 센터 정렬 단일 컬럼 */
-.layout-new { margin-top: 116px; min-height: calc(100vh - 116px); overflow-x: hidden; }
-.main-new { max-width: 1200px; margin: 0 auto; padding: 20px; min-width: 0; }
+.layout-new { margin-top: 60px; min-height: calc(100vh - 60px); overflow-x: hidden; }
+.main-new { max-width: 1140px; margin: 0 auto; padding: 20px 20px 20px calc(20px - 0.1cm); min-width: 0; }
 
-/* Category Tabs */
+/* Category Tabs — 헤더 안에 인라인 (로고 오른쪽, 검색/액션 왼쪽) */
 .category-tabs {
-  background: var(--card); border-bottom: 1px solid var(--border);
-  height: 60px;
-  position: fixed; top: 56px; left: 0; right: 0; z-index: 90;
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center; height: 100%;
 }
 .category-tabs-container {
   display: flex; gap: 4px; align-items: center; height: 100%;
-  max-width: 1200px; margin: 0 auto; padding: 0 20px;
+  width: 100%;
   overflow-x: auto;
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* IE/Edge */
 }
+.category-tabs-container::-webkit-scrollbar { display: none; }  /* Chrome/Safari */
 .category-tab {
   display: flex; align-items: center; gap: 6px; padding: 8px 16px;
   border-radius: var(--radius-full); font-size: 13px; font-weight: 500;
@@ -151,25 +158,56 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
 .category-label { font-size: 13px; font-weight: 700; }
 
 /* Home Content */
+/* 블라인드식: 페이지 전체 흰 배경 + 얇은 구분선(hairline)으로 섹션 구분 (카드 패널 없음).
+   배경은 body.feed-white 가 뷰포트 전체를 칠하고, 콘텐츠는 .main-new(1200px)로 가운데 정렬. */
+body.feed-white { background: var(--card); }
+/* 홈: 본문(왼쪽) + 오른쪽 레일(광고/위젯 예약). 본문이 좁아져 행이 과하게 늘어나지 않음. */
+.home-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;   /* 블라인드 규격: 본문 736 + 여백 64 + 레일 300 = 1100 */
+  gap: 64px;                                      /* 본문 ↔ 광고 레일 여백 (블라인드 실측) */
+  align-items: start;
+  min-height: calc(100vh - 160px);
+}
+.home-main { min-width: 0; }
+.home-rail { position: sticky; top: 76px; }
+.home-rail-ad {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  min-height: 250px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--subtext); font-size: 13px;
+}
 .home-content {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 24px;
-  margin-top: 20px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0 1cm;          /* 1·2열 사이 간격 (블라인드 기준 1cm) */
+  margin-top: 0;
 }
 
 @media (max-width: 768px) {
+  .home-view {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .home-rail { display: none; }
   .home-content {
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 0;
   }
   
+  /* 모바일: 탭을 헤더(52px) 바로 아래 둘째 줄로 분리 */
+  .category-tabs {
+    position: absolute; top: 100%; left: 0; right: 0;
+    height: 48px; background: var(--card); border-bottom: 1px solid var(--border);
+    z-index: 89;
+  }
   .category-tabs-container {
     padding: 0 12px;
   }
 
   .layout-new {
-    margin-top: 104px; /* 카테고리 탭 높이 조정 */
+    margin-top: 100px; /* 헤더 52 + 탭바 48 */
     padding-bottom: 56px; /* 하단 모바일 네비 여백 */
   }
 
@@ -180,31 +218,39 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
 
 /* Category Preview */
 .category-preview {
-  background: var(--card);
-  padding: 22px 24px;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
-  transition: box-shadow var(--duration) var(--ease), transform var(--duration) var(--ease);
-}
-.category-preview:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  background: transparent;
+  padding: 18px 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 .category-preview-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 .category-preview-title {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.category-preview-emoji {
-  font-size: 18px;
+.category-preview-icon {
+  width: 26px; height: 26px; flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--primary-50);
+  color: var(--primary);
+  display: inline-flex; align-items: center; justify-content: center;
 }
+/* 전체 인기글 목록의 게시판 아이콘 타일 (보드 섹션과 통일, 한 단계 작게) */
+.trending-icon {
+  width: 22px; height: 22px; flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--primary-50);
+  color: var(--primary);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.trending-board { font-size: 12px; color: #9AA0A6; flex-shrink: 0; white-space: nowrap; }
 .category-preview-title h3 {
   font-size: 16px;
   font-weight: 700;
@@ -212,19 +258,34 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
   margin: 0;
 }
 .category-preview-more {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--sage);
-  background: var(--sage-light);
-  padding: 5px 14px;
+  color: var(--subtext);
+  background: none;
+  padding: 0;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: color var(--duration) var(--ease);
+}
+/* 화살표에만 동그란 회색 배경 칩 */
+.category-preview-more::after {
+  content: '\203A';
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  width: 18px;
+  height: 18px;
   border-radius: var(--radius-full);
-  border: 1px solid transparent;
-  transition: var(--duration) var(--ease);
+  background: var(--bg);
+  color: var(--subtext);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
-.category-preview-more:hover {
-  background: var(--sage);
-  color: white;
-}
+.category-preview-more:hover { color: var(--text); }
+.category-preview-more:hover::after { background: var(--border-light); }
 .category-preview-posts {
   display: flex;
   flex-direction: column;
@@ -232,12 +293,7 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
 .category-preview-post {
   cursor: pointer;
   transition: var(--duration) var(--ease);
-  padding: 9px 0;
-  border-bottom: 1px solid var(--border-light);
-}
-.category-preview-post:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+  padding: 6px 0;
 }
 .category-preview-post:hover .preview-post-title {
   color: var(--primary);
@@ -249,10 +305,10 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
   gap: 12px;
 }
 .preview-post-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text);
-  line-height: 1.55;
+  line-height: 1.45;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -444,6 +500,19 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
   transition: box-shadow var(--duration) var(--ease), transform var(--duration) var(--ease), border-color var(--duration) var(--ease); cursor: pointer;
 }
 .post-card:hover { border-color: var(--border); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+/* 피드 화면(흰 배경)에선 카드 패널 대신 블라인드식 hairline 리스트 */
+body.feed-white .post-card {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-light);
+  border-radius: 0;
+  box-shadow: none;
+  margin-bottom: 0;
+  padding: 16px 4px;
+}
+body.feed-white .post-card:hover { box-shadow: none; transform: none; }
+body.feed-white .post-card:hover .post-card-title { color: var(--primary); }
+body.feed-white .post-card.cheongbing { border-left: 3px solid var(--success); padding-left: 12px; }
 .post-card-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
 .post-time { font-size: 11px; color: var(--subtext); }
 .post-card-title { font-size: 16px; font-weight: 700; margin-bottom: 5px; color: var(--dark); line-height: 1.45; letter-spacing: -0.2px; }
@@ -454,8 +523,8 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
 .post-card.cheongbing { border-left: 3px solid var(--success); }
 .cheongbing-meta { display: flex; gap: 4px; margin: 6px 0; flex-wrap: wrap; }
 .cheongbing-tag { font-size: 11px; padding: 2px 8px; border-radius: var(--radius-full); background: var(--success-light); color: var(--success); font-weight: 500; }
-.trending-section { background: var(--card); border-radius: var(--radius-lg); padding: 18px 22px; margin-bottom: 12px; border: 1px solid var(--border-light); box-shadow: var(--shadow-xs); }
-.trending-section h3 { font-size: 14px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; color: var(--dark); }
+.trending-section { background: transparent; border-radius: 0; padding: 4px 0 18px; margin-bottom: 18px; border: none; box-shadow: none; }
+.trending-section h3 { font-size: 16px; font-weight: 700; margin: 0; color: var(--text); }
 .trending-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; cursor: pointer; transition: var(--duration) var(--ease); }
 .trending-item:hover { color: var(--primary); }
 .trending-rank { font-weight: 800; color: var(--primary); width: 18px; text-align: center; font-size: 14px; }
@@ -599,7 +668,8 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
 .mobile-nav { display: none; }
 @media (max-width: 768px) {
   .sidebar { display: none; }
-  .header { padding: 0 12px; height: 52px; }
+  .header { height: 52px; }
+  .header-inner { padding: 0 12px; max-width: none; }
   .search-bar { width: auto; min-width: 80px; max-width: calc(100vw - 200px); flex-shrink: 1; }
   .logo-text { display: none; }
   .mobile-nav {

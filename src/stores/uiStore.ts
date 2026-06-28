@@ -11,6 +11,7 @@ interface UIState {
   notifPanelOpen: boolean
   reportModal: ReportModalState
   loginPromptOpen: boolean
+  pendingAction: (() => void) | null   // 로그인 성공 후 이어서 실행할 동작(예: 클릭했던 글로 이동)
   verifyPromptOpen: boolean
   membershipPromptOpen: boolean
   dataVersion: number   // 데이터 캐시가 갱신될 때마다 +1 (구독 컴포넌트 재렌더용)
@@ -22,7 +23,7 @@ interface UIState {
   closeNotifPanel: () => void
   openReportModal: (targetType: 'post' | 'comment', targetId: string) => void
   closeReportModal: () => void
-  openLoginPrompt: () => void
+  openLoginPrompt: (action?: () => void) => void
   closeLoginPrompt: () => void
   openVerifyPrompt: () => void
   closeVerifyPrompt: () => void
@@ -35,6 +36,7 @@ export const useUIStore = create<UIState>((set) => ({
   notifPanelOpen: false,
   reportModal: { open: false, targetType: 'post', targetId: '' },
   loginPromptOpen: false,
+  pendingAction: null,
   verifyPromptOpen: false,
   membershipPromptOpen: false,
   dataVersion: 0,
@@ -46,8 +48,8 @@ export const useUIStore = create<UIState>((set) => ({
   closeNotifPanel: () => set({ notifPanelOpen: false }),
   openReportModal: (targetType, targetId) => set({ reportModal: { open: true, targetType, targetId } }),
   closeReportModal: () => set(s => ({ reportModal: { ...s.reportModal, open: false } })),
-  openLoginPrompt: () => set({ loginPromptOpen: true }),
-  closeLoginPrompt: () => set({ loginPromptOpen: false }),
+  openLoginPrompt: (action) => set({ loginPromptOpen: true, pendingAction: action ?? null }),
+  closeLoginPrompt: () => set({ loginPromptOpen: false, pendingAction: null }),
   openVerifyPrompt: () => set({ verifyPromptOpen: true }),
   closeVerifyPrompt: () => set({ verifyPromptOpen: false }),
   openMembershipPrompt: () => set({ membershipPromptOpen: true }),

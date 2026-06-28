@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 
 /**
  * 1단계 게이트: 로그인 + 학생증 승인(approved) 회원만 통과.
- * 미로그인은 로그인 팝업, 미승인은 가입 승인 안내 팝업을 띄우고 홈으로 보낸다.
+ * 미로그인은 로그인 모달, 미승인은 가입 승인 안내 팝업을 띄우고 홈으로 보낸다.
  */
 export function MembershipGuard({ children }: { children: ReactNode }) {
   const { user, initialized } = useAuthStore()

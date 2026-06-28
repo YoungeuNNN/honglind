@@ -23,17 +23,17 @@ export function PostDetailPage() {
   const isOwner = !!user && post?.authorId === user.id
   const isAdmin = user?.role === 'admin'
 
-  // 조회수 증가 — 진입 시 1회만. 본인 글/관리자는 제외하고,
+  // 조회수 증가 — 진입 시 1회만. 본인 글은 제외(관리자는 카운트함),
   // 같은 브라우저 세션에서 같은 글은 한 번만 집계(새로고침·재방문 중복 방지).
   useEffect(() => {
-    if (!id || isOwner || isAdmin) return
+    if (!id || isOwner) return
     const KEY = 'viewed_posts'
     let viewed: string[] = []
     try { viewed = JSON.parse(sessionStorage.getItem(KEY) || '[]') } catch { /* ignore */ }
     if (viewed.includes(id)) return
     try { sessionStorage.setItem(KEY, JSON.stringify([...viewed, id])) } catch { /* ignore */ }
     DS.incrementViews(id).then(rerender).catch(console.error)
-  }, [id, isOwner, isAdmin])
+  }, [id, isOwner])
 
   if (!post) { navigate('/'); return null }
 
@@ -59,6 +59,12 @@ export function PostDetailPage() {
       }
       rerender()
     } catch (e) { toast(e instanceof Error ? e.message : '오류') }
+  }
+
+  // 관리자 전용: 가산 좋아요 ±1
+  const adjustLikeBoost = async (delta: number) => {
+    try { await DS.adminAdjustPostLikeBoost(post.id, delta); rerender() }
+    catch (e) { toast(e instanceof Error ? e.message : '오류') }
   }
 
   const togglePrayer = async () => {
@@ -245,6 +251,12 @@ export function PostDetailPage() {
           <button className={`btn-like ${isLiked ? 'active' : ''}`} onClick={toggleLike}>
             <HeartIcon filled={isLiked} /> 좋아요 {post.likes.length}
           </button>
+          {user?.role === 'admin' && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} title={`가산 좋아요 ${post.likeBoost ?? 0}`}>
+              <button type="button" className="btn btn-secondary btn-small" onClick={() => adjustLikeBoost(-1)} aria-label="좋아요 1 감소">−</button>
+              <button type="button" className="btn btn-secondary btn-small" onClick={() => adjustLikeBoost(1)} aria-label="좋아요 1 증가">+</button>
+            </span>
+          )}
           {isPR && (
             <>
               <button className={`btn-pray ${hasPrayed ? 'active' : ''}`} onClick={togglePrayer}>

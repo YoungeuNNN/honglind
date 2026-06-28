@@ -9,12 +9,12 @@ import { supabase, setRememberMe, getRememberMe } from '@/api/supabase'
 export function AuthPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const navState = location.state as { from?: { pathname?: string; search?: string }; mode?: 'login' | 'register' } | null
+  const navState = location.state as { from?: { pathname?: string; search?: string }; mode?: 'login' | 'register' | 'reset' } | null
   const redirectTo = navState?.from
   const goAfterAuth = () => navigate(redirectTo?.pathname ? `${redirectTo.pathname}${redirectTo.search || ''}` : '/', { replace: true })
   const { login, register, user } = useAuthStore()
   const toast = useToastStore(s => s.show)
-  const [mode, setMode] = useState<'login' | 'register' | 'reset' | 'verify-sent'>(navState?.mode === 'register' ? 'register' : 'login')
+  const [mode, setMode] = useState<'login' | 'register' | 'reset' | 'verify-sent'>(navState?.mode === 'register' ? 'register' : navState?.mode === 'reset' ? 'reset' : 'login')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 

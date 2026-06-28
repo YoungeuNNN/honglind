@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { useVerifiedAction } from '@/hooks/useVerifiedAction'
 import { SearchIcon, PlusIcon, DocumentIcon, BookmarkIcon, MessageIcon, SettingsIcon, ShieldIcon, LogoutIcon } from '@/components/ui/Icons'
 import { NotificationPanel } from '@/components/notification/NotificationPanel'
+import { CategoryTabs } from './CategoryTabs'
 
 export function Header() {
   const navigate = useNavigate()
@@ -12,6 +13,7 @@ export function Header() {
   const guard = useVerifiedAction()
   const { user, logout } = useAuthStore()
   const { userMenuOpen, toggleUserMenu, closeUserMenu } = useUIStore()
+  const openLoginPrompt = useUIStore(s => s.openLoginPrompt)
   const [searchQuery, setSearchQuery] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -42,11 +44,15 @@ export function Header() {
 
   return (
     <header className="header">
+      <div className="header-inner">
       <div className="header-left">
         <a className="logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
           <div className="logo-icon"><span className="logo-cross">&#10013;</span></div>
           <span className="logo-text"><span>홍</span>라인드</span>
         </a>
+      </div>
+      <CategoryTabs />
+      <div className="header-right">
         <div className="search-bar">
           <SearchIcon />
           <input
@@ -57,8 +63,6 @@ export function Header() {
             onKeyUp={handleSearch}
           />
         </div>
-      </div>
-      <div className="header-right">
         {showUserInfo && <NotificationPanel />}
         {!isMain && (
           <button className="btn btn-primary btn-small" onClick={guard(() => navigate('/write'))} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -97,11 +101,12 @@ export function Header() {
           </div>
         ) : (
           !user && (
-            <button className="btn btn-primary" onClick={() => navigate('/auth')} style={{ padding: '9px 22px', fontSize: 14 }}>
+            <button className="btn btn-primary" onClick={() => openLoginPrompt()} style={{ padding: '9px 22px', fontSize: 14 }}>
               로그인
             </button>
           )
         )}
+      </div>
       </div>
     </header>
   )

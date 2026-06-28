@@ -284,6 +284,16 @@ export async function deletePost(id: string): Promise<void> {
   if (index >= 0) mockPosts.splice(index, 1)
 }
 
+export async function adminAdjustPostLikeBoost(postId: string, delta: number): Promise<number> {
+  const post = mockPosts.find(p => p.id === postId)
+  if (!post) throw new Error('게시글을 찾을 수 없습니다.')
+  const newBoost = Math.max(0, (post.likeBoost ?? 0) + delta)
+  post.likeBoost = newBoost
+  const real = post.likes.filter(id => !id.startsWith('~'))
+  post.likes = [...real, ...Array.from({ length: newBoost }, (_, i) => `~b${i}`)]
+  return newBoost
+}
+
 export async function togglePostLike(postId: string): Promise<boolean> {
   const post = getPostById(postId)
   const userId = _sessionUser?.id
@@ -391,17 +401,8 @@ export function getNotifications(): Notification[] {
   return []
 }
 
-export async function createNotification(data: Partial<Notification>): Promise<Notification> {
-  const newNotification: Notification = {
-    id: `notif${Date.now()}`,
-    userId: data.userId || '',
-    type: data.type || 'like',
-    postId: data.postId || '',
-    message: data.message || '',
-    read: false,
-    createdAt: new Date().toISOString(),
-  }
-  return newNotification
+export async function createNotification(_data: Partial<Notification>): Promise<void> {
+  // mock 모드에서는 알림 저장이 필요 없다 (실제 DB의 RLS 되읽기 문제와 무관). no-op.
 }
 
 export function getUserNotifications(_userId: string): Notification[] {

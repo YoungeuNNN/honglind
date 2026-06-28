@@ -66,6 +66,7 @@ export interface Post {
   title: string
   content: string
   likes: string[]
+  likeBoost?: number   // 관리자 가산 좋아요(보정치). 표시 개수 = 실제 좋아요 + likeBoost
   views: number
   createdAt: string
   updatedAt: string | null

@@ -1,23 +1,21 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useAuthAction } from '@/hooks/useAuthAction'
 import * as DS from '@/api/dataService'
 import { CATEGORY_LABELS, MARKET_STATUS_LABELS } from '@/utils/constants'
 import { timeAgo } from '@/utils/helpers'
-import { HeartIcon, CommentIcon, EyeIcon } from '@/components/ui/Icons'
+import { HeartIcon, CommentIcon, EyeIcon, CategoryIcon } from '@/components/ui/Icons'
 import { CategoryPreview } from '@/components/home/CategoryPreview'
 import type { Post } from '@/types'
 
 const CATEGORIES = [
-  { category: '인기', label: '인기글', emoji: '🔥' },
   { category: '자유', label: '자유게시판', emoji: '💬' },
   { category: '사역고민', label: '사역 고민', emoji: '🙏' },
   { category: '신학토론', label: '신학 토론', emoji: '📖' },
   { category: '설교준비', label: '설교 준비', emoji: '🎙️' },
   { category: '기도요청', label: '기도요청', emoji: '🕊️' },
-  { category: '연봉', label: '사례비/처우', emoji: '💰' },
   { category: '사역장터', label: '사역장터', emoji: '🛒' },
   // { category: '청빙', label: '청빙 공고', emoji: '📢' },  // 숨김 — 커뮤니티 성장 후 오픈
 ]
@@ -35,6 +33,12 @@ export function FeedPage() {
   const category = searchParams.get('category') || 'all'
   const search = searchParams.get('search') || ''
 
+  // 피드(홈/카테고리/검색) 화면 전체를 흰 배경으로 (블라인드식 풀-화이트). 다른 화면은 회색 유지.
+  useEffect(() => {
+    document.body.classList.add('feed-white')
+    return () => document.body.classList.remove('feed-white')
+  }, [])
+
   // 목록/제목/메타는 누구나 본다. 본문은 글 상세에서 승인 회원에게만 노출.
   const blockedIds = user ? DS.getBlockedIds(user.id) : []
   const allPosts = DS.getPosts()
@@ -42,7 +46,8 @@ export function FeedPage() {
   // 전체 홈페이지 뷰 (카테고리별 미리보기)
   if (category === 'all' && !search) {
     return (
-      <>
+      <div className="home-view">
+        <div className="home-main">
         <AnnouncementSection />
         <TrendingSection />
 
@@ -50,7 +55,6 @@ export function FeedPage() {
           {CATEGORIES.map(cat => {
             const categoryPosts = allPosts.filter(p => {
               if (blockedIds.length && blockedIds.includes(p.authorId)) return false
-              if (cat.category === '인기') return p.likes.length >= 3
               return p.category === cat.category
             })
 
@@ -64,12 +68,14 @@ export function FeedPage() {
                 emoji={cat.emoji}
                 posts={categoryPosts}
                 commentCounts={{}}
-                alwaysShow={cat.category !== '인기'}
+                alwaysShow
               />
             )
           })}
         </div>
-      </>
+        </div>
+        <aside className="home-rail"><div className="home-rail-ad">광고 영역</div></aside>
+      </div>
     )
   }
 
@@ -110,7 +116,7 @@ export function FeedPage() {
       {!visiblePosts.length ? (
         <div className="empty-state fade-in"><p>{search ? '검색 결과가 없습니다.' : '아직 게시글이 없습니다.'}</p></div>
       ) : (
-        visiblePosts.map(p => <PostCard key={p.id} post={p} commentCount={p.commentCount} userId={user?.id} onClick={guard(() => navigate(`/post/${p.id}`))} />)
+        visiblePosts.map(p => <PostCard key={p.id} post={p} commentCount={p.commentCount} userId={user?.id} showCategory={!!search} onClick={guard(() => navigate(`/post/${p.id}`))} />)
       )}
 
       {hasMore && (
@@ -124,7 +130,7 @@ export function FeedPage() {
   )
 }
 
-function PostCard({ post: p, commentCount, userId, onClick }: { post: Post; commentCount: number; userId?: string; onClick: () => void }) {
+function PostCard({ post: p, commentCount, userId, onClick, showCategory = false }: { post: Post; commentCount: number; userId?: string; onClick: () => void; showCategory?: boolean }) {
   const isCB = p.category === '청빙' && p.cheongbing
   const isMarket = p.category === '사역장터' && p.market
   const isPR = p.category === '기도요청'
@@ -138,8 +144,8 @@ function PostCard({ post: p, commentCount, userId, onClick }: { post: Post; comm
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
     >
       <div className="post-card-header">
-        <span className={`post-category cat-${p.category}`}>{p.category}</span>
-        {p.prayerAnswered && <span style={{ fontSize: 11, background: 'var(--accent-light)', color: 'var(--warm)', padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>&#10024; 응답</span>}
+        {showCategory && <span className={`post-category cat-${p.category}`}>{p.category}</span>}
+        {p.prayerAnswered &&<span style={{ fontSize: 11, background: 'var(--accent-light)', color: 'var(--warm)', padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>&#10024; 응답</span>}
         <span className="post-time">{timeAgo(p.createdAt)}</span>
       </div>
       <div className="post-card-title">{p.title}</div>
@@ -194,19 +200,27 @@ function AnnouncementSection() {
   )
 }
 
-// 실시간 인기(트렌딩) 산정 기준 — 최근 N일 글만 후보로, 참여도 가중 점수로 정렬.
+// 인기글(트렌딩) 산정 기준 — 최근 N일 글만 후보로, "참여도 + 시간 감쇠"로 정렬.
 // 숫자만 바꾸면 기준이 조정됩니다.
 const TRENDING_WINDOW_DAYS = 7                                   // 최근 며칠 글까지 후보로 볼지
 const TRENDING_W = { view: 1, like: 3, comment: 5, prayer: 3 }   // 항목별 가중치
+const TRENDING_GRAVITY = 1.7                                     // 클수록 최신글을 더 강하게 밀어줌(오래된 글은 더 빨리 하락)
+const TRENDING_FRESH_BONUS = 5                                   // 참여가 적은 갓 올라온 글도 잠깐 노출되게 하는 기본 점수
 
-function trendingScore(p: Post): number {
+function engagementScore(p: Post): number {
   return p.views * TRENDING_W.view
     + p.likes.length * TRENDING_W.like
     + p.commentCount * TRENDING_W.comment
     + (p.prayers?.length ?? 0) * TRENDING_W.prayer
 }
 
-// 최근 N일 내 글만 후보로, 가중 점수 높은 순 상위 5개.
+// 참여도에 시간 감쇠를 적용(Hacker News 방식): 최신일수록 점수↑, 시간이 지나면 같은 참여수라도 점수가 떨어져 자연히 밀려남.
+function trendingScore(p: Post, nowMs: number): number {
+  const ageHours = Math.max(0, (nowMs - new Date(p.createdAt).getTime()) / 3_600_000)
+  return (engagementScore(p) + TRENDING_FRESH_BONUS) / Math.pow(ageHours + 2, TRENDING_GRAVITY)
+}
+
+// 최근 N일 내 글만 후보로, 가중 점수 높은 순 상위 10개.
 // (Date.now 를 컴포넌트 렌더 밖 일반 함수로 두어 순수성 규칙을 지킴)
 function computeTrending(posts: Post[]): Post[] {
   const now = Date.now()
@@ -215,9 +229,9 @@ function computeTrending(posts: Post[]): Post[] {
   const pool = recent.length >= 5 ? recent : posts  // 최근 글이 적으면 전체로 폴백(섹션이 비지 않게)
   return [...pool]
     .sort((a, b) =>
-      trendingScore(b) - trendingScore(a) ||
+      trendingScore(b, now) - trendingScore(a, now) ||
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 5)
+    .slice(0, 10)
 }
 
 function TrendingSection() {
@@ -227,8 +241,13 @@ function TrendingSection() {
   if (!trending.length) return null
   return (
     <div className="trending-section fade-in">
-      <h3>{'\u{1F525}'} 실시간 인기</h3>
-      {trending.map((p, i) => (
+      <div className="category-preview-header">
+        <div className="category-preview-title">
+          <h3>전체 인기글</h3>
+        </div>
+        <button className="category-preview-more" onClick={() => navigate('/?category=인기')}>더보기</button>
+      </div>
+      {trending.map((p) => (
         <div
           key={p.id}
           className="trending-item"
@@ -237,8 +256,8 @@ function TrendingSection() {
           tabIndex={0}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); guard(() => navigate(`/post/${p.id}`))() } }}
         >
-          <span className="trending-rank">{i + 1}</span>
-          <span className={`post-category cat-${p.category}`} style={{ fontSize: 11, padding: '1px 6px' }}>{p.category}</span>
+          <span className="trending-icon" title={p.category}><CategoryIcon category={p.category} size={13} /></span>
+          <span className="trending-board">{CATEGORY_LABELS[p.category] || p.category}</span>
           <span className="trending-title">{p.title}</span>
           <span style={{ marginLeft: 'auto', display: 'flex', gap: 10, fontSize: 12, color: 'var(--subtext)', whiteSpace: 'nowrap' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><HeartIcon size={13} color="var(--primary)" /> {p.likes.length}</span>
