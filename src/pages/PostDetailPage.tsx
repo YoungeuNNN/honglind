@@ -295,16 +295,18 @@ export function PostDetailPage() {
         {canSeeContent && (
         <div className="comments-section">
           <div className="comments-title">댓글 <span>{allComments.length}</span></div>
+          <div>
+            {topComments.length === 0
+              ? <div className="comments-empty">아직 댓글이 없어요. 첫 댓글을 남겨보세요.</div>
+              : topComments.map(c => (
+                  <CommentItem key={c.id} comment={c} allComments={allComments} postAuthorId={post.authorId} postId={post.id} rerender={rerender} />
+                ))}
+          </div>
           <div className="comment-input-area">
             <textarea placeholder="댓글을 입력하세요..." value={commentText}
               onChange={e => setCommentText(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment() } }} />
             <button className="btn btn-primary btn-small" onClick={addComment}>등록</button>
-          </div>
-          <div>
-            {topComments.map(c => (
-              <CommentItem key={c.id} comment={c} allComments={allComments} postAuthorId={post.authorId} postId={post.id} rerender={rerender} />
-            ))}
           </div>
         </div>
         )}

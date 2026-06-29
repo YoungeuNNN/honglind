@@ -1,0 +1,17 @@
+[
+  {
+    "type": "post",
+    "handle": "u15",
+    "category": "자유",
+    "title": "여기에 제목",
+    "content": "여기에 본문.\n줄바꿈은 \\n 으로.",
+    "views": 12
+  },
+  {
+    "type": "comment",
+    "handle": "u32",
+    "postId": "댓글 달 게시글의 UUID",
+    "content": "여기에 댓글 내용",
+    "parentId": null
+  }
+]
