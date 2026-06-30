@@ -4,10 +4,12 @@ import { useAuthStore } from '@/stores/authStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useAuthAction } from '@/hooks/useAuthAction'
 import * as DS from '@/api/dataService'
-import { CATEGORY_LABELS, MARKET_STATUS_LABELS } from '@/utils/constants'
+import { CATEGORY_LABELS, MARKET_STATUS_LABELS, isCategoryIndexable } from '@/utils/constants'
 import { timeAgo } from '@/utils/helpers'
+import { useSeoMeta } from '@/hooks/useSeoMeta'
 import { HeartIcon, CommentIcon, EyeIcon, CategoryIcon } from '@/components/ui/Icons'
 import { CategoryPreview } from '@/components/home/CategoryPreview'
+import { AdSlot } from '@/components/ui/AdSlot'
 import type { Post } from '@/types'
 
 const CATEGORIES = [
@@ -15,7 +17,7 @@ const CATEGORIES = [
   { category: '사역고민', label: '사역 고민', emoji: '🙏' },
   { category: '신학토론', label: '신학 토론', emoji: '📖' },
   { category: '설교준비', label: '설교 준비', emoji: '🎙️' },
-  { category: '기도요청', label: '기도요청', emoji: '🕊️' },
+  { category: '기도요청', label: '기도 요청', emoji: '🕊️' },
   { category: '사역장터', label: '사역장터', emoji: '🛒' },
   // { category: '청빙', label: '청빙 공고', emoji: '📢' },  // 숨김 — 커뮤니티 성장 후 오픈
 ]
@@ -38,6 +40,15 @@ export function FeedPage() {
     document.body.classList.add('feed-white')
     return () => document.body.classList.remove('feed-white')
   }, [])
+
+  // SEO: 홈/게시판 목록은 색인 허용. 카테고리별 화면은 라벨을 제목에 반영하고,
+  // 민감 보드(CATEGORY_INDEXABLE=false)를 보고 있으면 그 화면은 noindex 로 뺀다.
+  const isBoardView = category !== 'all' && category !== '인기' && !search
+  useSeoMeta({
+    title: isBoardView ? CATEGORY_LABELS[category] : undefined,
+    description: '사역자와 신학생을 위한 익명 커뮤니티 홍라인드. 사역 고민, 신학 토론, 설교 준비, 기도 요청, 사역장터까지 함께 나눠요.',
+    robots: isBoardView && !isCategoryIndexable(category) ? 'noindex, follow' : 'index, follow',
+  })
 
   // 목록/제목/메타는 누구나 본다. 본문은 글 상세에서 승인 회원에게만 노출.
   const blockedIds = user ? DS.getBlockedIds(user.id) : []
@@ -74,7 +85,7 @@ export function FeedPage() {
           })}
         </div>
         </div>
-        <aside className="home-rail"><div className="home-rail-ad">광고 영역</div></aside>
+        <aside className="home-rail"><AdSlot slot={import.meta.env.VITE_ADSENSE_SLOT_RAIL} /></aside>
       </div>
     )
   }

@@ -108,16 +108,32 @@ export function PrivacyPage() {
         </section>
 
         <section className="legal-section">
-          <h2>제10조 (개인정보 보호책임자)</h2>
+          <h2>제10조 (광고 게재 및 제3자 광고 쿠키)</h2>
+          <p>
+            서비스는 운영 유지를 위해 Google AdSense 등 제3자 광고 서비스를 통해 광고를 게재할 수 있습니다.
+          </p>
+          <ul>
+            <li>Google을 포함한 제3자 광고 사업자는 쿠키를 사용하여, 이용자의 이전 방문 기록 등을 바탕으로 맞춤형 광고를 제공할 수 있습니다.</li>
+            <li>Google은 광고 제공을 위해 광고 쿠키(DART 쿠키 등)를 사용하며, 이용자는 <a href="https://www.google.com/settings/ads" target="_blank" rel="noopener noreferrer">Google 광고 설정</a>에서 맞춤형 광고를 비활성화할 수 있습니다.</li>
+            <li><a href="https://www.aboutads.info" target="_blank" rel="noopener noreferrer">www.aboutads.info</a>에서 제3자 광고 사업자의 맞춤형 광고 쿠키 사용을 일괄적으로 거부할 수도 있습니다.</li>
+            <li>제3자 광고 사업자의 개인정보 처리는 <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">Google 광고 정책</a> 등 각 사업자의 방침을 따릅니다.</li>
+          </ul>
+          <p className="legal-note">
+            ※ 광고 쿠키는 브라우저 설정에서 거부할 수 있으며, 거부하더라도 서비스 이용에는 제한이 없습니다(맞춤형 광고만 비활성화됩니다).
+          </p>
+        </section>
+
+        <section className="legal-section">
+          <h2>제11조 (개인정보 보호책임자)</h2>
           <p>서비스는 개인정보 처리에 관한 업무를 총괄하여 책임지는 개인정보 보호책임자를 다음과 같이 지정합니다.</p>
           <ul>
             <li>개인정보 보호책임자: 홍라인드 운영자</li>
-            <li>연락처(이메일): [문의 이메일]</li>
+            <li>연락처(이메일): honglind.help@gmail.com</li>
           </ul>
         </section>
 
         <section className="legal-section">
-          <h2>제11조 (권익침해 구제 방법)</h2>
+          <h2>제12조 (권익침해 구제 방법)</h2>
           <p>개인정보 침해로 인한 상담·신고가 필요한 경우 아래 기관에 문의할 수 있습니다.</p>
           <ul>
             <li>개인정보분쟁조정위원회 (privacy.go.kr / 국번없이 1833-6972)</li>
@@ -128,7 +144,7 @@ export function PrivacyPage() {
         </section>
 
         <section className="legal-section">
-          <h2>제12조 (개인정보처리방침의 변경)</h2>
+          <h2>제13조 (개인정보처리방침의 변경)</h2>
           <p>
             이 개인정보처리방침은 법령·정책 또는 서비스 변경에 따라 내용이 추가·삭제·수정될 수 있으며,
             변경 시 서비스 내 공지를 통해 고지합니다.

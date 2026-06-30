@@ -1,0 +1,4 @@
+# 홍라인드 ads.txt — Google AdSense
+# AdSense 승인 후 발급되는 퍼블리셔 ID(pub-XXXXXXXXXXXXXXXX)로
+# 아래 줄의 주석(#)을 풀고 값을 채워 넣으세요.
+# google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0

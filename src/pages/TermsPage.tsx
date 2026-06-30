@@ -109,7 +109,7 @@ export function TermsPage() {
 
         <section className="legal-section">
           <h2>문의</h2>
-          <p>본 약관에 관한 문의는 이메일([문의 이메일])로 연락해 주시기 바랍니다.</p>
+          <p>본 약관에 관한 문의는 이메일(honglind.help@gmail.com)로 연락해 주시기 바랍니다.</p>
         </section>
       </div>
     </div>

@@ -10,7 +10,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   사역고민: '사역 고민',
   신학토론: '신학 토론',
   설교준비: '설교 준비',
-  기도요청: '기도요청',
+  기도요청: '기도 요청',
   연봉:     '사례비/처우',
   청빙:     '청빙 공고',
   사역장터: '사역장터',
@@ -47,6 +47,28 @@ export const VERIFICATION_LABELS: Record<string, { label: string; color: string 
   pending:    { label: '인증 검토중', color: 'var(--primary)' },
   verified:   { label: '인증 완료', color: 'var(--success)' },
   rejected:   { label: '인증 거절', color: 'var(--danger)' },
+}
+
+// ── 게시판별 검색 색인 정책 (수익 ↔ 익명성 스위치) ──────────────
+// true  = 검색엔진 색인 허용 (검색 유입 + 광고 수익↑)
+// false = noindex (검색 결과에서 제외 → 신원 추적 위험↓, 단 그 보드의 검색 유입 수익은 사라짐)
+//
+// 기본은 전체 색인. 민감 보드를 검색에서 빼고 싶으면 해당 값만 false 로 바꾸면 즉시 적용된다.
+// (글 상세 페이지·카테고리 화면의 <meta name="robots"> 가 이 값을 따라감. robots.txt 는 크롤 자체는
+//  계속 허용하므로 AdSense 광고 크롤러는 영향 없음 — 색인만 빠진다.)
+export const CATEGORY_INDEXABLE: Record<string, boolean> = {
+  자유:     true,
+  사역고민: true,   // 민감: 신원 추적 우려 시 false 권장
+  신학토론: true,
+  설교준비: true,
+  기도요청: true,   // 민감: 신원 추적 우려 시 false 권장
+  사역장터: true,
+  청빙:     true,   // 민감(지역·교회 노출): 우려 시 false 권장
+  연봉:     true,   // 민감(사례비): 우려 시 false 권장
+}
+
+export function isCategoryIndexable(category: string): boolean {
+  return CATEGORY_INDEXABLE[category] ?? true
 }
 
 export const CATEGORY_EMOJIS: Record<string, string> = {

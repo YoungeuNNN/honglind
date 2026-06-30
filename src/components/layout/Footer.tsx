@@ -11,7 +11,7 @@ export function Footer() {
           <span className="site-footer-sep">·</span>
           <Link to="/terms">이용약관</Link>
           <span className="site-footer-sep">·</span>
-          <a href="mailto:[문의 이메일]">광고 문의</a>
+          <a href="mailto:honglind.help@gmail.com">광고 문의</a>
         </div>
         <p className="site-footer-copy">
           © {2026} 홍라인드 · 사역자 &amp; 신학생 익명 커뮤니티

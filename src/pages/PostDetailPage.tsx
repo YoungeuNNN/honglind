@@ -5,7 +5,8 @@ import { useUIStore } from '@/stores/uiStore'
 import { useToastStore } from '@/stores/toastStore'
 import * as DS from '@/api/dataService'
 import { timeAgo } from '@/utils/helpers'
-import { MARKET_STATUS_LABELS } from '@/utils/constants'
+import { useSeoMeta } from '@/hooks/useSeoMeta'
+import { MARKET_STATUS_LABELS, CATEGORY_LABELS, isCategoryIndexable } from '@/utils/constants'
 import { HeartIcon, BackIcon, FlagIcon, ShareIcon, BookmarkIcon } from '@/components/ui/Icons'
 import type { Comment as CommentType, Post } from '@/types'
 
@@ -34,6 +35,16 @@ export function PostDetailPage() {
     try { sessionStorage.setItem(KEY, JSON.stringify([...viewed, id])) } catch { /* ignore */ }
     DS.incrementViews(id).then(rerender).catch(console.error)
   }, [id, isOwner])
+
+  // SEO: 제목·카테고리는 색인, 본문은 게이트되므로 설명은 일반 안내문으로(본문 유출 방지).
+  // 보드별 색인 정책(CATEGORY_INDEXABLE)에 따라 민감 보드는 noindex 로 빠짐.
+  useSeoMeta({
+    title: post?.title,
+    description: post
+      ? `[${CATEGORY_LABELS[post.category] || post.category}] 사역자·신학생 익명 커뮤니티 홍라인드. 로그인하면 전문과 댓글을 볼 수 있어요.`
+      : undefined,
+    robots: post && !isCategoryIndexable(post.category) ? 'noindex, follow' : 'index, follow',
+  })
 
   if (!post) { navigate('/'); return null }
 
@@ -233,6 +244,14 @@ export function PostDetailPage() {
 
         {canSeeContent ? (
           <div className="post-detail-body">{post.content}</div>
+        ) : !user ? (
+          <div className="cheongbing-fields" style={{ margin: '16px 0', textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>{'\u{1F512}'}</div>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>이 글의 본문은 로그인 후 볼 수 있습니다</div>
+            <div style={{ fontSize: 13, color: 'var(--subtext)', marginBottom: 10 }}>좋아요 {post.likes.length} · 댓글 {post.commentCount}</div>
+            <p style={{ fontSize: 13, color: 'var(--subtext)', marginBottom: 14, lineHeight: 1.6 }}>홍라인드는 사역자·신학생을 위한 익명 커뮤니티예요. 로그인하면 본문과 댓글을 모두 보실 수 있어요.</p>
+            <button className="btn btn-primary" onClick={() => navigate('/auth')}>로그인하고 본문 보기</button>
+          </div>
         ) : (
           <div className="cheongbing-fields" style={{ margin: '16px 0', textAlign: 'center' }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>{'\u{1F512}'}</div>

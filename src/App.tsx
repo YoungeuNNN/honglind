@@ -55,21 +55,22 @@ export default function App() {
         <AppInit>
           <Toast />
           <Routes>
-            {/* 인증 불필요 */}
+            {/* 인증 불필요 — 헤더 없는 독립 페이지(로그인) */}
             <Route path="/auth" element={<AuthPage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/privacy" element={<PrivacyPage />} />
-            <Route path="/terms" element={<TermsPage />} />
 
-            {/* 공개 — 로그인 없이 볼 수 있는 페이지 (홈/게시판 목록) */}
+            {/* 공개 — 헤더/푸터(AppLayout)는 유지하고 콘텐츠만 교체 (홈/게시판/글 상세/약관 등) */}
             <Route element={<AppLayout />}>
               <Route path="/" element={<FeedPage />} />
+              {/* 글 상세: 비로그인/검색봇도 제목·메타 열람(SEO·AdSense 색인용).
+                  본문·댓글은 페이지 내부에서 승인 회원에게만 노출(canSeeContent). */}
+              <Route path="/post/:id" element={<PostDetailPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
             </Route>
 
             {/* 인증 필요 — AppLayout 안에 렌더링 */}
             <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
-              {/* 글 상세: 로그인하면 열람 가능, 본문은 승인 회원에게만 (페이지 내부에서 게이트) */}
-              <Route path="/post/:id" element={<PostDetailPage />} />
               <Route path="/write" element={<MembershipGuard><WritePage /></MembershipGuard>} />
               <Route path="/write/:id" element={<MembershipGuard><WritePage /></MembershipGuard>} />
               <Route path="/my-posts" element={<MembershipGuard><MyPostsPage /></MembershipGuard>} />
