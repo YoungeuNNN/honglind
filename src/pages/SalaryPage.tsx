@@ -12,7 +12,7 @@ const pct = (r: number) => Math.round(r * 100)
 export function SalaryPage() {
   // 신원추적 위험 차단 — 사례비 페이지는 검색 색인에서 제외
   useSeoMeta({
-    title: '사례비 진실',
+    title: '사례비 현황',
     description: '사역자 실지급 사례비·환산 시급을 익명으로 집계합니다.',
     robots: 'noindex, follow',
   })
@@ -41,7 +41,7 @@ export function SalaryPage() {
   return (
     <>
       <div className="feed-header">
-        <h2 className="feed-title">&#128176; 사례비 진실</h2>
+        <h2 className="feed-title">&#128202; 사례비 현황</h2>
         <button className="btn btn-primary btn-small" onClick={() => navigate('/salary/new')}>제보하기</button>
       </div>
 

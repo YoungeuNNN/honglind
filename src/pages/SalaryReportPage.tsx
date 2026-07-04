@@ -104,7 +104,7 @@ export function SalaryReportPage() {
         <BackIcon /> 목록으로
       </div>
       <div className="write-page fade-in">
-        <h2>&#128176; 사례비 제보</h2>
+        <h2>&#128202; 사례비 제보</h2>
         <p style={{ color: 'var(--subtext)', fontSize: 13, marginTop: -8, marginBottom: 20, lineHeight: 1.6 }}>
           익명으로 집계됩니다. 교회명은 데이터를 묶는 데만 쓰이고 <b>화면에 노출되지 않습니다</b>.
           같은 교회 제보가 <b>3건 이상</b> 모이기 전엔 개별 정보가 표시되지 않아요.
@@ -154,7 +154,7 @@ export function SalaryReportPage() {
         </div>
 
         <div className="cheongbing-fields" style={{ background: '#E0F2F1', borderColor: '#B2DFDB' }}>
-          <h4 style={{ color: '#00796B' }}>&#128181; 사례비</h4>
+          <h4 style={{ color: '#00796B' }}>&#128202; 사례비</h4>
           <div className="cheongbing-row">
             <div className="form-group"><label style={smallLabel}>월 실수령 사례비</label>
               <input type="text" inputMode="numeric" className="form-input"

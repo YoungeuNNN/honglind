@@ -14,7 +14,7 @@ const SIDEBAR_ITEMS = [
   ]},
   { section: '청빙 · 사례비', items: [
     { category: '청빙', label: '청빙 공고', emoji: '\u{1F4E3}', tag: 'NEW' },
-    { route: '/salary', label: '사례비 진실', emoji: '\u{1F4B0}', tag: 'NEW' },
+    { route: '/salary', label: '사례비 현황', emoji: '\u{1F4CA}', tag: 'NEW' },
   ]},
 ]
 

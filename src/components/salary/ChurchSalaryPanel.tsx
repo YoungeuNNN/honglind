@@ -33,7 +33,7 @@ export function ChurchSalaryPanel({ churchKey, churchName }: { churchKey?: strin
 
   return (
     <div className="cheongbing-fields" style={{ margin: '16px 0', background: '#E0F2F1', borderColor: '#B2DFDB' }}>
-      <h4 style={{ color: '#00796B' }}>{'\u{1F4B0}'} 이 교회 실지급 사례비</h4>
+      <h4 style={{ color: '#00796B' }}>{'\u{1F4CA}'} 이 교회 실지급 사례비</h4>
 
       {loading ? (
         <div style={{ fontSize: 13, color: 'var(--subtext)' }}>불러오는 중...</div>

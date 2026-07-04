@@ -142,8 +142,8 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
 }
 .category-tabs-container::-webkit-scrollbar { display: none; }  /* Chrome/Safari */
 .category-tab {
-  display: flex; align-items: center; gap: 6px; padding: 9px 18px;
-  border-radius: var(--radius-full); font-size: 15px; font-weight: 500;
+  display: flex; align-items: center; gap: 5px; padding: 8px 12px;
+  border-radius: var(--radius-full); font-size: 14px; font-weight: 500;
   color: var(--text-secondary); background: transparent;
   transition: var(--duration) var(--ease); cursor: pointer;
   white-space: nowrap; border: 1px solid transparent; flex-shrink: 0;
@@ -154,8 +154,8 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
 .category-tab.active { 
   background: var(--primary); color: white; border-color: var(--primary);
 }
-.category-emoji { font-size: 17px; }
-.category-label { font-size: 15px; font-weight: 700; }
+.category-emoji { font-size: 16px; }
+.category-label { font-size: 14px; font-weight: 700; }
 
 /* Home Content */
 /* 블라인드식: 페이지 전체 흰 배경 + 얇은 구분선(hairline)으로 섹션 구분 (카드 패널 없음).
