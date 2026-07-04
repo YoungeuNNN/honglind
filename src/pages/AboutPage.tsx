@@ -42,8 +42,6 @@ export function AboutPage() {
           <ul>
             <li><strong>자유게시판</strong> — 일상과 소소한 이야기</li>
             <li><strong>사역 고민</strong> — 현장에서 마주하는 어려움과 진로</li>
-            <li><strong>신학 토론</strong> — 신학적 질문과 관점의 교환</li>
-            <li><strong>설교 준비</strong> — 본문 묵상과 설교 아이디어 나눔</li>
             <li><strong>기도 요청</strong> — 서로의 제목을 위해 함께 기도</li>
             <li><strong>사역장터</strong> — 자료 나눔·구함, 사역에 필요한 거래</li>
           </ul>

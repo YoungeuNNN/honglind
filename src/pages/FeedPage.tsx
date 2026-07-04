@@ -15,8 +15,6 @@ import type { Post } from '@/types'
 const CATEGORIES = [
   { category: '자유', label: '자유게시판', emoji: '💬' },
   { category: '사역고민', label: '사역 고민', emoji: '🙏' },
-  { category: '신학토론', label: '신학 토론', emoji: '📖' },
-  { category: '설교준비', label: '설교 준비', emoji: '🎙️' },
   { category: '기도요청', label: '기도 요청', emoji: '🕊️' },
   { category: '사역장터', label: '사역장터', emoji: '🛒' },
   // { category: '청빙', label: '청빙 공고', emoji: '📢' },  // 숨김 — 커뮤니티 성장 후 오픈
@@ -46,7 +44,7 @@ export function FeedPage() {
   const isBoardView = category !== 'all' && category !== '인기' && !search
   useSeoMeta({
     title: isBoardView ? CATEGORY_LABELS[category] : undefined,
-    description: '사역자와 신학생을 위한 익명 커뮤니티 홍라인드. 사역 고민, 신학 토론, 설교 준비, 기도 요청, 사역장터까지 함께 나눠요.',
+    description: '사역자와 신학생을 위한 익명 커뮤니티 홍라인드. 사역 고민, 기도 요청, 청빙, 사례비까지 함께 나눠요.',
     robots: isBoardView && !isCategoryIndexable(category) ? 'noindex, follow' : 'index, follow',
   })
 
