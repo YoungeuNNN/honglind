@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { HomeIcon, BriefcaseIcon, PlusIcon, CircleIcon, UserIcon } from '@/components/ui/Icons'
+import { HomeIcon, PlusIcon, CircleIcon, UserIcon } from '@/components/ui/Icons'
 import { useAuthAction } from '@/hooks/useAuthAction'
 import { useVerifiedAction } from '@/hooks/useVerifiedAction'
 
@@ -13,8 +13,8 @@ export function MobileNav() {
       <div className="mobile-nav-item active" onClick={() => navigate('/')}>
         <HomeIcon />홈
       </div>
-      <div className="mobile-nav-item" onClick={() => navigate('/?category=사역장터')}>
-        <BriefcaseIcon />장터
+      <div className="mobile-nav-item" onClick={() => navigate('/salary')}>
+        <span style={{ fontSize: 18, lineHeight: 1 }}>💰</span>사례비
       </div>
       <div className="mobile-nav-item" onClick={verified(() => navigate('/write'))} style={{ color: 'var(--primary)' }}>
         <PlusIcon size={20} />글쓰기

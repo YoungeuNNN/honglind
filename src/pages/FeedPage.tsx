@@ -17,7 +17,7 @@ const CATEGORIES = [
   { category: '사역고민', label: '사역 고민', emoji: '🙏' },
   { category: '기도요청', label: '기도 요청', emoji: '🕊️' },
   { category: '사역장터', label: '사역장터', emoji: '🛒' },
-  // { category: '청빙', label: '청빙 공고', emoji: '📢' },  // 숨김 — 커뮤니티 성장 후 오픈
+  { category: '청빙', label: '청빙 공고', emoji: '📢' },
 ]
 
 export function FeedPage() {
