@@ -6,7 +6,7 @@ const CATEGORY_ITEMS: { category?: string; route?: string; label: string }[] = [
   { category: '기도요청', label: '기도 요청' },
   { category: '사역장터', label: '사역장터' },
   { category: '청빙', label: '청빙 공고' },
-  { route: '/salary', label: '💰 사례비 진실' },
+  { route: '/salary', label: '💰 사례비' },
 ]
 
 export function CategoryTabs() {
