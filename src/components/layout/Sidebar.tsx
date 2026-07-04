@@ -14,7 +14,10 @@ const SIDEBAR_ITEMS = [
     { category: '기도요청', label: '기도 요청', emoji: '\u{1F54A}' },
     { category: '사역장터', label: '사역장터', emoji: '\u{1F6D2}' },
   ]},
-  // 청빙 게시판은 커뮤니티 성장 후 오픈 (숨김)
+  { section: '청빙 · 사례비', items: [
+    { category: '청빙', label: '청빙 공고', emoji: '\u{1F4E3}', tag: 'NEW' },
+    { route: '/salary', label: '사례비 진실', emoji: '\u{1F4B0}', tag: 'NEW' },
+  ]},
 ]
 
 export function Sidebar() {

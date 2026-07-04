@@ -81,3 +81,4 @@ values ('example.ac.kr', '설명');
 
 - [PLANNING.md](./PLANNING.md) — 본 기획서 (Step 1~8 전체 명세)
 - [PLANNING_EXTENSION.md](./PLANNING_EXTENSION.md) — 확장 기획 (마켓플레이스/기업회원 등)
+- [PLANNING_SALARY_TRUTH.md](./PLANNING_SALARY_TRUTH.md) — 사례비 진실 DB & 초빙 유입 루프 (웨지 빌드 스펙)

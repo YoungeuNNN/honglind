@@ -31,6 +31,8 @@ export interface CheongbingData {
   salary: string
   deadline: string
   contact: string
+  sourceUrl?: string    // 외부 초빙 공고 출처 링크 (예: 장신대 초빙게시판)
+  churchKey?: string     // 사례비 진실 DB와 연결하는 정규화 교회키 (관리자/파일럿 수기 부여)
 }
 
 export interface PollOption {
@@ -167,4 +169,80 @@ export interface AllowedDomain {
 export interface SignUpResult {
   user: User | null
   requiresEmailConfirmation: boolean
+}
+
+// ── 사례비 진실 DB (Salary Truth) ────────────────────────────
+// 스펙: PLANNING_SALARY_TRUTH.md
+export type MinistryPosition =
+  | '파트전도사' | '교육전도사' | '풀타임전도사' | '부목사' | '기타'
+
+// 출석 규모 버킷 (원시 인원수 저장 금지 — 특정 방지)
+export type ChurchSizeBucket =
+  | '~50' | '50-150' | '150-300' | '300-1000' | '1000+'
+
+// 개별 제보 (본인 조회 전용 — 집계 외 노출 안 함). reporterId 는 클라이언트로 안 내려온다.
+export interface SalaryReport {
+  id: string
+  denomination: string           // 교단
+  regionSido: string             // 시/도
+  regionSigungu: string          // 시/군/구 (동 이하 금지)
+  churchSize: ChurchSizeBucket
+  position: MinistryPosition
+  monthlyStipend: number         // 월 실수령(원, 정수)
+  weeklyHours: number            // 주당 사역시간
+  housingProvided: boolean       // 사택
+  mealsProvided: boolean         // 식사
+  transportProvided: boolean     // 교통비
+  insurance4: boolean            // 4대보험
+  serveYear: number              // 사역(수령) 연도. 연 단위만
+  note?: string | null
+  createdAt: string
+}
+
+// 제보 입력 payload (churchName 은 관리자 정규화용 원문)
+export interface SalaryReportInput {
+  denomination: string
+  regionSido: string
+  regionSigungu: string
+  churchSize: ChurchSizeBucket
+  position: MinistryPosition
+  monthlyStipend: number
+  weeklyHours: number
+  housingProvided: boolean
+  mealsProvided: boolean
+  transportProvided: boolean
+  insurance4: boolean
+  serveYear: number
+  note?: string | null
+  churchName?: string | null
+  churchKey?: string | null   // 청빙 글에서 URL로 전달돼 제보를 해당 교회에 자동 연결
+}
+
+// 지역·직분별 집계 (RPC 반환. count 는 항상 >= 3)
+export interface SalaryAggRow {
+  groupLabel: string
+  count: number
+  medianMonthly: number
+  p25Monthly: number
+  p75Monthly: number
+  medianHourly: number           // 시급 = 월 / (주당 * 4.345)
+  housingRate: number            // 0~1
+  insuranceRate: number          // 0~1
+}
+
+// 특정 교회 집계 (N<3 이면 fetch 가 null 반환)
+export interface ChurchSalaryAgg {
+  count: number
+  medianMonthly: number
+  medianHourly: number
+  housingRate: number
+  insuranceRate: number
+}
+
+// 랜딩/헤드라인
+export interface SalaryOverview {
+  totalReports: number
+  medianHourlyPart: number        // 파트전도사 시급 중앙값
+  belowMinWageRate: number        // 최저임금 미만 비율 (감정·확산 훅)
+  updatedYear: number
 }

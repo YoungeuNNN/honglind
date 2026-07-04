@@ -2,7 +2,8 @@
  * Mock Data Service - 개발용 임시 데이터
  * Supabase 연결 없이 테스트할 수 있도록 하는 목 데이터 서비스
  */
-import type { User, Post, Comment, Notification, Message, Report, Block, Bookmark, Announcement, AllowedDomain, SignUpResult, Conversation } from '@/types'
+import type { User, Post, Comment, Notification, Message, Report, Block, Bookmark, Announcement, AllowedDomain, SignUpResult, Conversation,
+  SalaryReport, SalaryReportInput, SalaryAggRow, ChurchSalaryAgg, SalaryOverview } from '@/types'
 
 // Mock 데이터
 const mockUsers: User[] = [
@@ -500,4 +501,46 @@ export async function togglePollVote(_postId: string, _optionIndex: number): Pro
 
 export async function reloadAll(): Promise<void> {
   // Mock에서는 다시 로드할 필요 없음
+}
+
+// ── 사례비 진실 DB (Salary Truth) — mock ──
+// 실서비스와 동일 시그니처. N<3 → null 분기도 반드시 재현(임계값 UI 테스트용).
+const mockSalaryReports: SalaryReport[] = [
+  {
+    id: 'sal1', denomination: '예장합동', regionSido: '서울', regionSigungu: '강남구',
+    churchSize: '300-1000', position: '파트전도사', monthlyStipend: 1_300_000, weeklyHours: 24,
+    housingProvided: false, mealsProvided: true, transportProvided: false, insurance4: false,
+    serveYear: 2025, note: null, createdAt: '2025-03-01T00:00:00Z',
+  },
+]
+
+export async function submitSalaryReport(_input: SalaryReportInput): Promise<void> {
+  // Mock에서는 실제로 저장하지 않음
+}
+
+export async function getMySalaryReports(): Promise<SalaryReport[]> {
+  return mockSalaryReports
+}
+
+export async function deleteSalaryReport(_id: string): Promise<void> {
+  // Mock에서는 실제로 삭제하지 않음
+}
+
+export async function fetchSalaryByRegion(_denomination?: string, _position?: string): Promise<SalaryAggRow[]> {
+  return [
+    { groupLabel: '서울 강남구 · 파트전도사', count: 7, medianMonthly: 1_300_000, p25Monthly: 1_000_000, p75Monthly: 1_600_000, medianHourly: 12_460, housingRate: 0.14, insuranceRate: 0.28 },
+    { groupLabel: '경기 성남시 · 교육전도사', count: 4, medianMonthly: 1_500_000, p25Monthly: 1_200_000, p75Monthly: 1_800_000, medianHourly: 8_630, housingRate: 0.25, insuranceRate: 0.5 },
+  ]
+}
+
+export async function fetchSalaryByChurch(churchKey: string): Promise<ChurchSalaryAgg | null> {
+  // 'demo-church' 만 N>=3 로 취급, 그 외는 표본부족(null) 재현
+  if (churchKey === 'demo-church') {
+    return { count: 3, medianMonthly: 1_400_000, medianHourly: 13_420, housingRate: 0.33, insuranceRate: 0.33 }
+  }
+  return null
+}
+
+export async function fetchSalaryOverview(): Promise<SalaryOverview> {
+  return { totalReports: 42, medianHourlyPart: 8_600, belowMinWageRate: 0.63, updatedYear: new Date().getFullYear() }
 }

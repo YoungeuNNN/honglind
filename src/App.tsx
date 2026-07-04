@@ -14,6 +14,8 @@ import { TermsPage } from '@/pages/TermsPage'
 import { FeedPage } from '@/pages/FeedPage'
 import { PostDetailPage } from '@/pages/PostDetailPage'
 import { WritePage } from '@/pages/WritePage'
+import { SalaryReportPage } from '@/pages/SalaryReportPage'
+import { SalaryPage } from '@/pages/SalaryPage'
 import { MyPostsPage } from '@/pages/MyPostsPage'
 import { BookmarksPage } from '@/pages/BookmarksPage'
 import { SettingsPage } from '@/pages/SettingsPage'
@@ -73,6 +75,8 @@ export default function App() {
             <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
               <Route path="/write" element={<MembershipGuard><WritePage /></MembershipGuard>} />
               <Route path="/write/:id" element={<MembershipGuard><WritePage /></MembershipGuard>} />
+              <Route path="/salary" element={<MembershipGuard><SalaryPage /></MembershipGuard>} />
+              <Route path="/salary/new" element={<MembershipGuard><SalaryReportPage /></MembershipGuard>} />
               <Route path="/my-posts" element={<MembershipGuard><MyPostsPage /></MembershipGuard>} />
               <Route path="/bookmarks" element={<MembershipGuard><BookmarksPage /></MembershipGuard>} />
               <Route path="/dm" element={<MembershipGuard><DMListPage /></MembershipGuard>} />

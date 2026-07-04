@@ -8,6 +8,7 @@ import { timeAgo } from '@/utils/helpers'
 import { useSeoMeta } from '@/hooks/useSeoMeta'
 import { MARKET_STATUS_LABELS, CATEGORY_LABELS, isCategoryIndexable } from '@/utils/constants'
 import { HeartIcon, BackIcon, FlagIcon, ShareIcon, BookmarkIcon } from '@/components/ui/Icons'
+import { ChurchSalaryPanel } from '@/components/salary/ChurchSalaryPanel'
 import type { Comment as CommentType, Post } from '@/types'
 
 export function PostDetailPage() {
@@ -185,7 +186,17 @@ export function PostDetailPage() {
                 ))}
               </tbody>
             </table>
+            {post.cheongbing.sourceUrl && (
+              <a href={post.cheongbing.sourceUrl} target="_blank" rel="noopener nofollow"
+                style={{ display: 'inline-block', marginTop: 8, fontSize: 13, color: 'var(--primary)', fontWeight: 600 }}>
+                원문 공고 보기 &#8599;
+              </a>
+            )}
           </div>
+        )}
+
+        {canSeeContent && isCB && post.cheongbing && (
+          <ChurchSalaryPanel churchKey={post.cheongbing.churchKey} churchName={post.cheongbing.region} />
         )}
 
         {canSeeContent && isMarket && post.market && (

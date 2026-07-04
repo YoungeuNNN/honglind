@@ -9,10 +9,12 @@
  * 인증은 Supabase Auth (auth.users + profiles).
  */
 import { supabase } from './supabase'
+import { MIN_WAGE_HOURLY } from '@/utils/constants'
 import type {
   User, Post, Comment, Notification, Message,
   Report, Block, Bookmark, Announcement, Conversation,
   Poll, PollOption, AllowedDomain, SignUpResult,
+  SalaryReport, SalaryReportInput, SalaryAggRow, ChurchSalaryAgg, SalaryOverview,
 } from '@/types'
 
 // ════════════════════════════════════════════════════════════
@@ -1141,5 +1143,142 @@ export async function fetchAllowedDomains(): Promise<AllowedDomain[]> {
   const list = (data ?? []).map(d => rowToAllowedDomain(d as AllowedDomainRow))
   cache.allowedDomains = list
   return list
+}
+
+// ════════════════════════════════════════════════════════════
+// 사례비 진실 DB (Salary Truth)
+//   - 캐시(loadAll)에 적재하지 않는다: 민감·가변·잠재적 대용량. on-demand fetch.
+//   - 조회는 집계 RPC(k>=3)로만. 개별 행은 본인 것만 SELECT 가능(RLS).
+//   - 스펙: PLANNING_SALARY_TRUTH.md
+// ════════════════════════════════════════════════════════════
+
+interface SalaryReportRow {
+  id: string
+  denomination: string
+  region_sido: string
+  region_sigungu: string
+  church_size: string
+  position: string
+  monthly_stipend: number
+  weekly_hours: number
+  housing_provided: boolean
+  meals_provided: boolean
+  transport_provided: boolean
+  insurance_4: boolean
+  serve_year: number
+  note: string | null
+  created_at: string
+}
+
+function rowToSalaryReport(r: SalaryReportRow): SalaryReport {
+  return {
+    id: r.id,
+    denomination: r.denomination,
+    regionSido: r.region_sido,
+    regionSigungu: r.region_sigungu,
+    churchSize: r.church_size as SalaryReport['churchSize'],
+    position: r.position as SalaryReport['position'],
+    monthlyStipend: r.monthly_stipend,
+    weeklyHours: Number(r.weekly_hours),
+    housingProvided: r.housing_provided,
+    mealsProvided: r.meals_provided,
+    transportProvided: r.transport_provided,
+    insurance4: r.insurance_4,
+    serveYear: r.serve_year,
+    note: r.note,
+    createdAt: r.created_at,
+  }
+}
+
+/** 제보 (verified 유저만 — RLS 로 강제). 캐시 미적재. */
+export async function submitSalaryReport(input: SalaryReportInput): Promise<void> {
+  const me = _sessionUser
+  if (!me) throw new Error('로그인이 필요합니다.')
+  const { error } = await supabase.from('salary_reports').insert({
+    reporter_id: me.id,
+    denomination: input.denomination,
+    region_sido: input.regionSido,
+    region_sigungu: input.regionSigungu,
+    church_size: input.churchSize,
+    position: input.position,
+    monthly_stipend: input.monthlyStipend,
+    weekly_hours: input.weeklyHours,
+    housing_provided: input.housingProvided,
+    meals_provided: input.mealsProvided,
+    transport_provided: input.transportProvided,
+    insurance_4: input.insurance4,
+    serve_year: input.serveYear,
+    note: input.note ?? null,
+    church_name: input.churchName ?? null,
+    church_key: input.churchKey ?? null,
+  })
+  if (error) throw error
+}
+
+/** 본인이 제출한 제보 목록 (RLS: 본인 것만). */
+export async function getMySalaryReports(): Promise<SalaryReport[]> {
+  const me = _sessionUser
+  if (!me) return []
+  const { data, error } = await supabase
+    .from('salary_reports')
+    .select('*')
+    .eq('reporter_id', me.id)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []).map(r => rowToSalaryReport(r as SalaryReportRow))
+}
+
+export async function deleteSalaryReport(id: string): Promise<void> {
+  const { error } = await supabase.from('salary_reports').delete().eq('id', id)
+  if (error) throw error
+}
+
+/** 지역·직분별 집계 (RPC. 표본 3건 미만 그룹은 애초에 반환 안 됨). */
+export async function fetchSalaryByRegion(denomination?: string, position?: string): Promise<SalaryAggRow[]> {
+  const { data, error } = await supabase.rpc('salary_agg_by_region', {
+    p_denomination: denomination ?? null,
+    p_position: position ?? null,
+  })
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map(r => ({
+    groupLabel: String(r.group_label),
+    count: Number(r.count),
+    medianMonthly: Number(r.median_monthly),
+    p25Monthly: Number(r.p25_monthly),
+    p75Monthly: Number(r.p75_monthly),
+    medianHourly: Number(r.median_hourly),
+    housingRate: Number(r.housing_rate),
+    insuranceRate: Number(r.insurance_rate),
+  }))
+}
+
+/** 특정 교회 집계. N<3 이면 null (RPC 가 0행 반환). */
+export async function fetchSalaryByChurch(churchKey: string): Promise<ChurchSalaryAgg | null> {
+  const { data, error } = await supabase.rpc('salary_agg_by_church', { p_church_key: churchKey })
+  if (error) throw error
+  const row = ((data ?? []) as Record<string, unknown>[])[0]
+  if (!row) return null
+  return {
+    count: Number(row.count),
+    medianMonthly: Number(row.median_monthly),
+    medianHourly: Number(row.median_hourly),
+    housingRate: Number(row.housing_rate),
+    insuranceRate: Number(row.insurance_rate),
+  }
+}
+
+/** 랜딩 헤드라인 통계. */
+export async function fetchSalaryOverview(): Promise<SalaryOverview> {
+  const year = new Date().getFullYear()
+  const { data, error } = await supabase.rpc('salary_overview', { p_min_wage: MIN_WAGE_HOURLY })
+  if (error) throw error
+  const row = ((data ?? []) as Record<string, unknown>[])[0]
+  if (!row) return { totalReports: 0, medianHourlyPart: 0, belowMinWageRate: 0, updatedYear: year }
+  return {
+    totalReports: Number(row.total_reports),
+    medianHourlyPart: Number(row.median_hourly_part ?? 0),
+    belowMinWageRate: Number(row.below_min_wage_rate ?? 0),
+    updatedYear: year,
+  }
 }
 

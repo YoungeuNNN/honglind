@@ -33,6 +33,8 @@ export function WritePage() {
   const [cbSalary, setCbSalary] = useState(existingPost?.cheongbing?.salary || '')
   const [cbDeadline, setCbDeadline] = useState(existingPost?.cheongbing?.deadline || '')
   const [cbContact, setCbContact] = useState(existingPost?.cheongbing?.contact || '')
+  const [cbSourceUrl, setCbSourceUrl] = useState(existingPost?.cheongbing?.sourceUrl || '')
+  const [cbChurchKey, setCbChurchKey] = useState(existingPost?.cheongbing?.churchKey || '')
   const [sermonVerse, setSermonVerse] = useState(existingPost?.sermonVerse || '')
   const [pollEnabled, setPollEnabled] = useState(!!existingPost?.poll)
   const [pollOptions, setPollOptions] = useState<string[]>(existingPost?.poll?.options.map(o => o.text) || ['', ''])
@@ -51,6 +53,8 @@ export function WritePage() {
     if (!title.trim()) { toast('제목을 입력하세요.'); return }
     if (!content.trim()) { toast('내용을 입력하세요.'); return }
     if (category === '사역장터' && !mContact.trim()) { toast('연락 방법을 입력하세요.'); return }
+    // 청빙은 사례비를 반드시 적게 한다 — "협의"로 얼버무리는 초빙게시판과의 차별점
+    if (category === '청빙' && !cbSalary.trim()) { toast('사례비를 입력하세요. (예: 월 130만원)'); return }
     let poll = null
     if (pollEnabled) {
       const opts = pollOptions.filter(t => t.trim())
@@ -73,7 +77,7 @@ export function WritePage() {
         // 수정 시에는 원래 작성자를 유지(관리자가 남의 글을 고쳐도 작성자가 바뀌지 않게)
         authorId: isEdit ? (existingPost?.authorId ?? user.id) : user.id,
         category, title: title.trim(), content: content.trim(),
-        cheongbing: category === '청빙' ? { position: cbPos, denomination: cbDenom, region: cbRegion, churchSize: cbSize, salary: cbSalary, deadline: cbDeadline, contact: cbContact } : null,
+        cheongbing: category === '청빙' ? { position: cbPos, denomination: cbDenom, region: cbRegion, churchSize: cbSize, salary: cbSalary, deadline: cbDeadline, contact: cbContact, sourceUrl: cbSourceUrl.trim() || undefined, churchKey: cbChurchKey.trim() || undefined } : null,
         market: category === '사역장터'
           ? { type: mType, price: mPrice.trim(), status: (existingPost?.market?.status || 'available'), contact: mContact.trim() }
           : null,
@@ -110,6 +114,8 @@ export function WritePage() {
         {category === '청빙' && (
           <div className="cheongbing-fields">
             <h4>&#128227; 청빙 상세 정보</h4>
+            <div className="form-group"><label style={{fontSize:12}}>외부 공고 링크 <span style={{color:'var(--subtext)',fontWeight:400}}>(선택 · 장신대 초빙게시판 등)</span></label>
+              <input type="url" className="form-input" value={cbSourceUrl} onChange={e=>setCbSourceUrl(e.target.value)} placeholder="https://..."/></div>
             <div className="cheongbing-row">
               <div className="form-group"><label style={{fontSize:12}}>직분</label><input type="text" value={cbPos} onChange={e=>setCbPos(e.target.value)} placeholder="예: 청년부 전도사"/></div>
               <div className="form-group"><label style={{fontSize:12}}>교단</label><input type="text" value={cbDenom} onChange={e=>setCbDenom(e.target.value)} placeholder="예: 대한예수교장로회(합동)"/></div>
@@ -123,6 +129,8 @@ export function WritePage() {
               <div className="form-group"><label style={{fontSize:12}}>마감일</label><input type="date" value={cbDeadline} onChange={e=>setCbDeadline(e.target.value)}/></div>
             </div>
             <div className="form-group"><label style={{fontSize:12}}>연락처</label><input type="text" className="form-input" value={cbContact} onChange={e=>setCbContact(e.target.value)} placeholder="이메일 또는 전화번호"/></div>
+            <div className="form-group"><label style={{fontSize:12}}>교회 연결 키 <span style={{color:'var(--subtext)',fontWeight:400}}>(선택 · 관리자용)</span></label>
+              <input type="text" className="form-input" value={cbChurchKey} onChange={e=>setCbChurchKey(e.target.value)} placeholder="예: gangnam-central — 이 교회의 사례비 데이터를 연결합니다"/></div>
           </div>
         )}
         {category === '설교준비' && (
